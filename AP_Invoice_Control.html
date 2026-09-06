@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AP Invoice Control</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --ink:#122A46;
+  --ink-2:#1B3A5C;
+  --paper:#F4F6F9;
+  --surface:#FFFFFF;
+  --line:#DCE3EA;
+  --line-strong:#B7C2CE;
+  --text:#182432;
+  --muted:#5B6774;
+  --accent:#2E6094;
+  --accent-dark:#194467;
+  --pass-bg:#E6F4EC; --pass-fg:#1C7A4C; --pass-line:#BEE2CC;
+  --warn-bg:#FCF2DE; --warn-fg:#96660A; --warn-line:#EFD79E;
+  --fail-bg:#FBEAEA; --fail-fg:#AE2B24; --fail-line:#F1C3C1;
+  --neutral-bg:#EAEDF1; --neutral-fg:#5B6774; --neutral-line:#D2D9E0;
+  --radius:5px;
+  --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font-mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--text);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;}
+button{font-family:inherit;font-size:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;font-size:inherit;}
+a{color:var(--accent);}
+::-webkit-scrollbar{width:9px;height:9px;}
+::-webkit-scrollbar-thumb{background:#C3CCD5;border-radius:6px;}
+
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+
+/* SHELL */
+.shell{display:flex;min-height:100vh;}
+.sidebar{width:216px;flex:0 0 216px;background:var(--ink);color:#DDE6EF;display:flex;flex-direction:column;position:fixed;top:0;bottom:0;left:0;overflow-y:auto;z-index:20;}
+.brand{padding:18px 18px 14px 18px;border-bottom:1px solid rgba(255,255,255,.12);}
+.brand-mark{font-weight:700;font-size:15px;letter-spacing:.2px;color:#fff;}
+.brand-sub{font-size:11px;color:#93A7BC;margin-top:2px;}
+.nav{padding:10px 8px;flex:1;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:5px;color:#B9C8D8;cursor:pointer;margin-bottom:2px;font-size:13px;border:1px solid transparent;}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff;}
+.nav-item.active{background:rgba(255,255,255,.11);color:#fff;border-color:rgba(255,255,255,.08);font-weight:600;}
+.nav-dot{width:6px;height:6px;border-radius:50%;background:#5A7592;flex:0 0 6px;}
+.nav-item.active .nav-dot{background:#6FB0E8;}
+.nav-badge{margin-left:auto;background:rgba(255,255,255,.14);color:#fff;font-size:10.5px;padding:1px 6px;border-radius:9px;font-family:var(--font-mono);}
+.sidebar-foot{padding:12px 16px;font-size:10.5px;color:#7690A8;border-top:1px solid rgba(255,255,255,.1);}
+
+.main{margin-left:216px;flex:1;min-width:0;}
+.topbar{background:var(--surface);border-bottom:1px solid var(--line);padding:10px 22px;display:flex;align-items:center;justify-content:space-between;gap:14px;position:sticky;top:0;z-index:10;}
+.topbar-title{font-size:16px;font-weight:700;color:var(--ink);}
+.topbar-sub{font-size:11.5px;color:var(--muted);margin-top:1px;}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.rolebox{display:flex;align-items:center;gap:6px;background:var(--paper);border:1px solid var(--line);border-radius:5px;padding:5px 9px;}
+.rolebox label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;}
+.rolebox select,.rolebox input{border:none;background:transparent;font-weight:600;color:var(--ink);outline:none;}
+.rolebox input[type=text]{cursor:text;border-bottom:1px dashed var(--line-strong);padding-bottom:1px;}
+.rolebox input[type=text]:hover{border-bottom-color:var(--accent);}
+.rolebox input[type=text]:focus{border-bottom:1px solid var(--accent);}
+.content{padding:20px 22px 60px 22px;max-width:1360px;}
+
+/* PRIMITIVES */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:16px 18px;margin-bottom:16px;}
+.card-title{font-size:13.5px;font-weight:700;color:var(--ink);margin:0 0 3px 0;}
+.card-sub{font-size:11.5px;color:var(--muted);margin:0 0 12px 0;}
+.grid{display:grid;gap:12px;}
+.grid-2{grid-template-columns:1fr 1fr;}
+.grid-3{grid-template-columns:1fr 1fr 1fr;}
+.grid-4{grid-template-columns:repeat(4,1fr);}
+@media (max-width:900px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr;}.sidebar{position:static;width:100%;flex:none;}.main{margin-left:0;}.nav{display:flex;flex-wrap:wrap;}.nav-item{flex:1 1 auto;}}
+
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600;}
+.field .req{color:var(--fail-fg);}
+.field input[type=text],.field input[type=date],.field input[type=number],.field input[type=email],.field select,.field textarea{
+  width:100%;padding:7px 9px;border:1px solid var(--line-strong);border-radius:5px;background:#fff;color:var(--text);outline:none;
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(46,96,148,.12);}
+.field textarea{resize:vertical;min-height:56px;}
+.field-help{font-size:10.5px;color:var(--muted);margin-top:3px;}
+.field-diff{border-color:var(--warn-line) !important;background:#FFFCF5;}
+
+fieldset.section{border:1px solid var(--line);border-radius:7px;padding:14px 16px 16px;margin:0 0 14px 0;}
+fieldset.section legend{font-size:11.5px;font-weight:700;color:var(--accent-dark);padding:0 6px;text-transform:uppercase;letter-spacing:.3px;}
+
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-strong);background:#fff;color:var(--text);padding:7px 13px;border-radius:5px;font-weight:600;font-size:12.5px;}
+.btn:hover{background:#F3F5F8;}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn-primary:hover{background:var(--accent-dark);}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--accent-dark);}
+.btn-danger{background:#fff;border-color:var(--fail-line);color:var(--fail-fg);}
+.btn-danger:hover{background:var(--fail-bg);}
+.btn-sm{padding:4px 9px;font-size:11.5px;}
+.btn[disabled]{opacity:.45;cursor:not-allowed;}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;border:1px solid transparent;white-space:nowrap;}
+.badge-pass{background:var(--pass-bg);color:var(--pass-fg);border-color:var(--pass-line);}
+.badge-warn{background:var(--warn-bg);color:var(--warn-fg);border-color:var(--warn-line);}
+.badge-fail{background:var(--fail-bg);color:var(--fail-fg);border-color:var(--fail-line);}
+.badge-neutral{background:var(--neutral-bg);color:var(--neutral-fg);border-color:var(--neutral-line);}
+.badge-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);padding:8px 10px;border-bottom:2px solid var(--line);white-space:nowrap;}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+tr:hover td{background:#FAFBFC;}
+.table-wrap{overflow-x:auto;}
+.row-link{color:var(--accent-dark);font-weight:600;cursor:pointer;text-decoration:underline;text-decoration-color:var(--line-strong);}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
+@media (max-width:1100px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:13px 15px;}
+.kpi-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;font-weight:700;}
+.kpi-value{font-size:22px;font-weight:700;color:var(--ink);margin-top:4px;font-family:var(--font-mono);}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+
+.chart-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:14px;}
+@media (max-width:1100px){.chart-grid{grid-template-columns:1fr;}}
+.chart-box{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:14px;}
+.chart-box canvas{max-height:230px;}
+
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap;}
+.tab{padding:9px 14px;font-size:12.5px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;}
+.tab:hover{color:var(--ink);}
+.tab.active{color:var(--accent-dark);border-bottom-color:var(--accent);}
+
+.stepper{display:flex;align-items:center;margin-bottom:18px;flex-wrap:wrap;}
+.step{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:20px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;}
+.step.active{background:var(--ink);color:#fff;}
+.step.done{color:var(--accent-dark);}
+.step-num{width:18px;height:18px;border-radius:50%;background:var(--neutral-bg);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:10.5px;flex:0 0 18px;}
+.step.active .step-num{background:#fff;color:var(--ink);}
+.step.done .step-num{background:var(--pass-bg);color:var(--pass-fg);}
+.step-sep{width:20px;height:1px;background:var(--line-strong);margin:0 2px;}
+
+.banner{border-radius:6px;padding:11px 14px;margin-bottom:14px;font-size:12.5px;border:1px solid;}
+.banner-fail{background:var(--fail-bg);border-color:var(--fail-line);color:var(--fail-fg);}
+.banner-warn{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-fg);}
+.banner-pass{background:var(--pass-bg);border-color:var(--pass-line);color:var(--pass-fg);}
+.banner-neutral{background:var(--neutral-bg);border-color:var(--neutral-line);color:var(--text);}
+.banner ul{margin:6px 0 0 18px;padding:0;}
+.banner-title{font-weight:700;margin-bottom:2px;}
+
+.docdrop{border:1.5px dashed var(--line-strong);border-radius:7px;padding:20px;text-align:center;color:var(--muted);background:#FBFCFD;}
+.docdrop input{display:none;}
+.doclabel{display:inline-block;padding:7px 14px;background:var(--ink);color:#fff;border-radius:5px;font-weight:600;font-size:12px;cursor:pointer;}
+.doc-thumb{max-width:220px;max-height:280px;border:1px solid var(--line);border-radius:6px;margin-top:10px;}
+.doclist-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px;}
+.doclist-row:last-child{border-bottom:none;}
+
+.diffgrid{display:grid;grid-template-columns:1.1fr 1fr 1fr .7fr;gap:0;font-size:12px;}
+.diffgrid > div{padding:7px 9px;border-bottom:1px solid var(--line);}
+.diffgrid .hd{font-weight:700;font-size:10.5px;color:var(--muted);text-transform:uppercase;background:var(--paper);}
+.diffgrid .mismatch{background:#FFFAEF;}
+
+.risk-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-weight:700;font-size:12.5px;}
+.risk-Low{background:var(--pass-bg);color:var(--pass-fg);}
+.risk-Medium{background:var(--warn-bg);color:var(--warn-fg);}
+.risk-High{background:#FCE3D8;color:#9A3B12;}
+.risk-Critical{background:var(--fail-bg);color:var(--fail-fg);}
+
+.empty{text-align:center;padding:36px 20px;color:var(--muted);}
+.empty-title{font-weight:700;color:var(--ink);margin-bottom:4px;font-size:13.5px;}
+
+.split{display:grid;grid-template-columns:.85fr 1.15fr;gap:16px;}
+@media (max-width:1000px){.split{grid-template-columns:1fr;}}
+
+.toast{position:fixed;bottom:20px;right:20px;background:var(--ink);color:#fff;padding:11px 16px;border-radius:6px;font-size:12.5px;box-shadow:0 6px 18px rgba(0,0,0,.2);z-index:100;max-width:340px;}
+
+.tag-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.small-muted{color:var(--muted);font-size:11px;}
+hr.sep{border:none;border-top:1px solid var(--line);margin:14px 0;}
+.inline-note{font-size:11px;color:var(--muted);margin-top:8px;padding:8px 10px;background:var(--paper);border-radius:5px;border:1px solid var(--line);}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script>
+/* =========================================================================
+   AP INVOICE CONTROL — validation, workflow & Excel register module
+   Single-file demo build. State persists per-user via window.storage.
+   ========================================================================= */
+
+const STORAGE_KEY = 'ap-invoice-control-state-v1';
+let chartInstances = {};
+
+/* ---------------------------- utilities -------------------------------- */
+function uid(prefix){ return prefix + Math.random().toString(36).slice(2,7).toUpperCase(); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function nowISO(){ return new Date().toISOString(); }
+function num(v){ const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+function addDays(iso, days){ if(!iso) return ''; const d = new Date(iso+'T00:00:00'); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
+function daysBetween(a,b){ if(!a||!b) return null; const d1=new Date(a), d2=new Date(b); return Math.round((d2-d1)/86400000); }
+function fmtCurrency(v, cur){
+  cur = cur || 'INR';
+  if(v===''||v===null||v===undefined||isNaN(v)) return '—';
+  try{ return new Intl.NumberFormat('en-IN',{style:'currency',currency:cur,maximumFractionDigits:2}).format(Number(v)); }
+  catch(e){ return Number(v).toFixed(2)+' '+cur; }
+}
+function fmtDate(iso){
+  if(!iso) return '—';
+  const d = new Date(iso+'T00:00:00');
+  if(isNaN(d)) return iso;
+  return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+}
+function esc(s){ return (s===undefined||s===null) ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function badge(status, label){
+  const cls = status==='PASS' ? 'badge-pass' : status==='FAIL' ? 'badge-fail' : status==='WARNING' ? 'badge-warn' : 'badge-neutral';
+  return `<span class="badge ${cls}"><span class="badge-dot"></span>${esc(label||status)}</span>`;
+}
+function getPath(obj, path){ return path.split('.').reduce((o,k)=> (o==null?undefined:o[k]), obj); }
+function setPath(obj, path, val){ const ks = path.split('.'); let o = obj; for(let i=0;i<ks.length-1;i++){ if(o[ks[i]]===undefined) o[ks[i]]={}; o=o[ks[i]]; } o[ks[ks.length-1]] = val; }
+function toast(msg){
+  const t = document.createElement('div'); t.className='toast'; t.textContent = msg;
+  document.body.appendChild(t); setTimeout(()=>t.remove(), 3200);
+}
+const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+
+/* ------------------------------ seed data -------------------------------- */
+function seedState(){
+  return {
+    currentRole: 'AP Maker',
+    currentUser: 'Aditi Rao',
+    view: 'dashboard',
+    activeInvoiceId: null,
+    wizardStep: 'details',
+    draft: null,
+    dashFilters: { vendor:'', poFlag:'', status:'', from:'', to:'' },
+    registerFilters: { q:'', status:'', poFlag:'' },
+    settings: { priceTolerancePct: 2, qtyTolerancePct: 5, poMandatoryAbove: 100000, entity: 'IN01 – Chennai Operations' },
+    vendors: [
+      { code:'V-1001', name:'Sterling Industrial Supplies Pvt Ltd', gstin:'29ABCDE1234F1Z5', pan:'ABCDE1234F', bank:'HDFC0001234 / 00123456789012', address:'Plot 14, Peenya Industrial Area, Bengaluru', contact:'accounts@sterlingind.example', active:true, paymentTerms:'Net 30', currency:'INR', msme:true, tan:'BLRS12345B' },
+      { code:'V-1002', name:'Bluewave Technologies Ltd', gstin:'27AAAAA0000A1Z5', pan:'AAAAA0000A', bank:'ICIC0002345 / 00234567890123', address:'Tower B, Hinjewadi Phase 2, Pune', contact:'ap@bluewavetech.example', active:true, paymentTerms:'Net 45', currency:'INR', msme:false, tan:'' },
+      { code:'V-1003', name:'Global Freight Logistics LLC', gstin:'33GFLLL5678G1Z2', pan:'GFLLL5678G', bank:'CITI0003456 / 00345678901234', address:'Chennai Port Logistics Park', contact:'billing@gflogistics.example', active:false, paymentTerms:'Net 15', currency:'INR', msme:false, tan:'' },
+      { code:'V-1004', name:'Meridian Facility Services', gstin:'29MFSPP4321M1Z8', pan:'MFSPP4321M', bank:'HDFC0009988 / 00998877665544', address:'No. 7 MG Road, Bengaluru', contact:'finance@meridianfs.example', active:true, paymentTerms:'Net 30', currency:'INR', msme:true, tan:'BLRM98765C' }
+    ],
+    pos: [
+      { number:'PO-50025', vendor:'Sterling Industrial Supplies Pvt Ltd', date:'2026-06-01', value:500000, balance:365000, active:true, validTo:'2026-12-31', currency:'INR', lineItems:[{item:'Steel Fasteners Grade A', qty:5000, unitPrice:42}] },
+      { number:'PO-50041', vendor:'Meridian Facility Services', date:'2026-07-15', value:180000, balance:20000, active:true, validTo:'2026-09-30', currency:'INR', lineItems:[{item:'Monthly Facility Management', qty:1, unitPrice:180000}] }
+    ],
+    agreements: [
+      { number:'AG-2026-014', vendor:'Bluewave Technologies Ltd', startDate:'2026-01-01', endDate:'2026-12-31', value:1200000, consumed:640000, billingFrequency:'Monthly', pricing:'Fixed monthly retainer of ₹1,00,000' }
+    ],
+    invoices: [],
+    auditLog: []
+  };
+}
+
+function newDraftInvoice(state){
+  return {
+    id: null,
+    invoiceIdDisplay: null,
+    vendorName:'', vendorCode:'', vendorGSTIN:'', vendorPAN:'', vendorAddress:'', vendorContact:'', vendorBank:'',
+    invoiceNumber:'', invoiceDate:'', currency:'INR', grossValue:'', taxableValue:'', cgst:'', sgst:'', igst:'', otherTax:'0', totalTax:'', netPayable:'', dueDate:'', paymentTerms:'', description:'',
+    tdsApplicable:'No', tdsSection:'', tdsRate:'', tdsAmount:'',
+    rcmApplicable:'No',
+    poAvailable:'No', poNumber:'', poDate:'', poValue:'', poBalanceValue:'',
+    agreementAvailable:'No', agreementNumber:'', agreementStart:'', agreementEnd:'',
+    costCentre:'', project:'', glAccount:'', businessUnit:'', entity: state.settings.entity,
+    classification:'Non-PO Invoice',
+    documents: [],
+    ocr: null,
+    manualOverrideOfOcr: false,
+    validations: [],
+    overallStatus: 'Not Run',
+    riskLevel: 'Low',
+    riskFlags: [],
+    exceptions: [],
+    workflow: { preparedBy: state.currentUser, preparedDate: todayISO(), reviewedBy:'', reviewedDate:'', approvedBy:'', approvalDate:'', status:'Draft', comments:'' },
+    createdDate: nowISO(), lastUpdatedDate: nowISO(), createdBy: state.currentUser, modifiedBy: state.currentUser
+  };
+}
+
+/* ------------------------------ state I/O -------------------------------- */
+let STATE = seedState();
+
+async function loadState(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, false);
+    if(res && res.value){ STATE = JSON.parse(res.value); }
+  }catch(e){ /* no saved state yet — keep seed */ }
+  render();
+}
+async function persist(){
+  try{ await window.storage.set(STORAGE_KEY, JSON.stringify(STATE), false); }
+  catch(e){ console.error('storage save failed', e); }
+}
+function save(){ persist(); render(); }
+
+/* ------------------------------ audit log --------------------------------*/
+function addAudit(invoice, action, extra){
+  STATE.auditLog.unshift(Object.assign({
+    id: uid('AL'), timestamp: nowISO(), user: STATE.currentUser, role: STATE.currentRole,
+    invoiceId: invoice ? invoice.id : null, invoiceNumber: invoice ? (invoice.invoiceIdDisplay||invoice.invoiceNumber) : '',
+    action: action, comments: ''
+  }, extra||{}));
+}
+
+/* ------------------------------ validation engine ------------------------*/
+function validateInvoice(inv, state){
+  const results = [];
+  const push = (category,label,status,message) => results.push({category,label,status,message});
+
+  // ---- Basic ----
+  push('Basic','Invoice number present', inv.invoiceNumber ? 'PASS':'FAIL', inv.invoiceNumber ? 'Provided' : 'Invoice number is missing');
+  push('Basic','Invoice date valid', inv.invoiceDate ? 'PASS':'FAIL', inv.invoiceDate ? 'Provided' : 'Invoice date is missing');
+  push('Basic','Vendor name present', inv.vendorName ? 'PASS':'FAIL', inv.vendorName ? 'Provided' : 'Vendor name is missing');
+  push('Basic','Invoice amount present', num(inv.grossValue) > 0 ? 'PASS':'FAIL', num(inv.grossValue) > 0 ? 'Provided' : 'Gross invoice value must be greater than zero');
+  push('Basic','Currency present', inv.currency ? 'PASS':'FAIL', inv.currency ? 'Provided' : 'Currency is missing');
+  push('Basic','Invoice document attached', inv.documents.some(d=>d.type==='Invoice') ? 'PASS':'FAIL', inv.documents.some(d=>d.type==='Invoice') ? 'Attached' : 'Mandatory invoice PDF/image not attached');
+  const taxSum = num(inv.cgst)+num(inv.sgst)+num(inv.igst)+num(inv.otherTax);
+  push('Basic','Tax calculation correct', Math.abs(taxSum - num(inv.totalTax)) < 1 ? 'PASS':'FAIL', `CGST+SGST+IGST+Other = ${taxSum.toFixed(2)} vs Total Tax entered = ${num(inv.totalTax).toFixed(2)}`);
+  const grossCheck = Math.abs((num(inv.taxableValue)+num(inv.totalTax)) - num(inv.grossValue));
+  push('Basic','Gross value reconciles', grossCheck < 1 ? 'PASS':'WARNING', `Taxable value + Total tax = ${(num(inv.taxableValue)+num(inv.totalTax)).toFixed(2)} vs Gross entered = ${num(inv.grossValue).toFixed(2)}`);
+  push('Basic','Invoice not blank / readable', inv.documents.some(d=>d.type==='Invoice' && d.status!=='Unreadable') ? 'PASS':'WARNING','No readability flag raised on the uploaded document');
+
+  // ---- GSTIN / PAN format ----
+  if(inv.vendorGSTIN){
+    push('Compliance','GSTIN format valid', GSTIN_RE.test(inv.vendorGSTIN) ? 'PASS':'FAIL', GSTIN_RE.test(inv.vendorGSTIN) ? 'Valid 15-character GSTIN structure' : 'GSTIN does not match the standard 15-character structure');
+  }
+  if(inv.vendorPAN){
+    push('Compliance','PAN format valid', PAN_RE.test(inv.vendorPAN) ? 'PASS':'FAIL', PAN_RE.test(inv.vendorPAN) ? 'Valid PAN structure' : 'PAN does not match the standard 10-character structure');
+  }
+
+  // ---- Duplicate check ----
+  const others = state.invoices.filter(x=>x.id !== inv.id);
+  const exactDup = others.find(x=> x.vendorName===inv.vendorName && x.invoiceNumber && inv.invoiceNumber && x.invoiceNumber.trim().toLowerCase()===inv.invoiceNumber.trim().toLowerCase());
+  const possibleDup = !exactDup && others.find(x=> x.vendorName===inv.vendorName && x.invoiceDate===inv.invoiceDate && num(x.grossValue)===num(inv.grossValue) && num(inv.grossValue)>0);
+  if(exactDup){
+    push('Duplicate','Duplicate invoice check','FAIL', `Duplicate found — same Vendor + Invoice Number as ${exactDup.invoiceIdDisplay} (₹${num(exactDup.grossValue).toLocaleString('en-IN')}, ${fmtDate(exactDup.invoiceDate)})`);
+  } else if(possibleDup){
+    push('Duplicate','Duplicate invoice check','WARNING', `Possible duplicate — same Vendor, Date & Amount as ${possibleDup.invoiceIdDisplay}`);
+  } else {
+    push('Duplicate','Duplicate invoice check','PASS','No duplicate detected against the register');
+  }
+
+  // ---- Vendor master ----
+  const vm = state.vendors.find(v=> v.name===inv.vendorName || (inv.vendorCode && v.code===inv.vendorCode));
+  if(!vm){
+    push('Vendor','Vendor exists in Vendor Master','FAIL','Vendor not found in Vendor Master — cannot verify GSTIN, PAN, bank or terms');
+  } else {
+    push('Vendor','Vendor exists in Vendor Master','PASS','Matched to '+vm.code);
+    push('Vendor','Vendor is active', vm.active ? 'PASS':'FAIL', vm.active ? 'Active in master':'Vendor is blocked/inactive in Vendor Master');
+    push('Vendor','Vendor code matches name', (!inv.vendorCode || inv.vendorCode===vm.code) ? 'PASS':'FAIL','Vendor code entered does not match this vendor name in master');
+    push('Vendor','GSTIN matches master', (!inv.vendorGSTIN || inv.vendorGSTIN===vm.gstin) ? 'PASS':'FAIL','GSTIN on invoice does not match Vendor Master');
+    push('Vendor','PAN matches master', (!inv.vendorPAN || inv.vendorPAN===vm.pan) ? 'PASS':'FAIL','PAN on invoice does not match Vendor Master');
+    push('Vendor','Bank details match master', (!inv.vendorBank || inv.vendorBank===vm.bank) ? 'PASS':'FAIL','Bank account details on invoice do not match Vendor Master. Payment must not be released without dual-control verification of the new account.');
+    push('Vendor','Currency acceptable for vendor', (!inv.currency || inv.currency===vm.currency) ? 'PASS':'WARNING',"Invoice currency differs from the vendor's approved settlement currency");
+    push('Vendor','Payment terms match master', (!inv.paymentTerms || inv.paymentTerms===vm.paymentTerms) ? 'PASS':'WARNING','Payment terms on invoice differ from Vendor Master terms ('+vm.paymentTerms+')');
+    if(vm.msme){
+      const ruleDate = addDays(inv.invoiceDate, 45);
+      const withinRule = inv.dueDate ? (inv.dueDate <= ruleDate) : null;
+      push('Compliance','MSME 45-day payment rule', withinRule===null ? 'WARNING' : (withinRule ? 'PASS':'FAIL'), 'Vendor is MSME-registered. Section 43B(h) / MSMED Act 2006 requires settlement within 45 days of acceptance — latest permissible date '+fmtDate(ruleDate)+'.');
+    }
+  }
+
+  // ---- PO validation ----
+  if(inv.poAvailable==='Yes'){
+    push('Documents','PO document attached', inv.documents.some(d=>d.type==='PO') ? 'PASS':'WARNING','Supporting PO document not attached');
+    const po = state.pos.find(p=>p.number===inv.poNumber);
+    if(!po){
+      push('PO','PO found in system','FAIL','PO number '+(inv.poNumber||'(blank)')+' not found in PO Master');
+    } else {
+      push('PO','PO found in system','PASS','Matched');
+      push('PO','PO is active', po.active ? 'PASS':'FAIL', po.active ? 'Active':'PO is closed/inactive');
+      push('PO','Vendor matches PO', po.vendor===inv.vendorName ? 'PASS':'FAIL','PO is issued to a different vendor: '+po.vendor);
+      push('PO','PO validity date', (!po.validTo || (!inv.invoiceDate || inv.invoiceDate<=po.validTo)) ? 'PASS':'FAIL','PO validity expired on '+fmtDate(po.validTo));
+      const sufficientBalance = num(inv.grossValue) <= po.balance + 0.01;
+      push('PO','Sufficient PO balance', sufficientBalance ? 'PASS':'FAIL', `Remaining PO balance ₹${po.balance.toLocaleString('en-IN')} — invoice value ₹${num(inv.grossValue).toLocaleString('en-IN')} ${sufficientBalance?'is within balance':'exceeds available balance'}`);
+      push('PO','Currency matches PO', (!po.currency || po.currency===inv.currency) ? 'PASS':'WARNING','Currency differs from PO currency');
+    }
+  } else {
+    if(num(inv.grossValue) > state.settings.poMandatoryAbove){
+      push('PO','PO required above threshold','FAIL',`Invoices above ₹${state.settings.poMandatoryAbove.toLocaleString('en-IN')} require a PO under configured business rules`);
+    }
+  }
+
+  // ---- Agreement validation ----
+  if(inv.agreementAvailable==='Yes'){
+    push('Documents','Agreement document attached', inv.documents.some(d=>d.type==='Agreement') ? 'PASS':'WARNING','Supporting agreement/contract document not attached');
+    const ag = state.agreements.find(a=>a.number===inv.agreementNumber);
+    if(!ag){
+      push('Agreement','Agreement found in system','FAIL','Agreement number '+(inv.agreementNumber||'(blank)')+' not found in Agreement Master');
+    } else {
+      push('Agreement','Agreement found in system','PASS','Matched');
+      push('Agreement','Vendor matches agreement', ag.vendor===inv.vendorName ? 'PASS':'FAIL','Agreement is held with a different vendor: '+ag.vendor);
+      const withinPeriod = (!inv.invoiceDate) ? null : (inv.invoiceDate>=ag.startDate && inv.invoiceDate<=ag.endDate);
+      push('Agreement','Invoice within contract period', withinPeriod ? 'PASS':'FAIL', withinPeriod===false ? `Invoice date is outside contract period (${fmtDate(ag.startDate)} – ${fmtDate(ag.endDate)})` : 'Invoice date not provided');
+      const projected = ag.consumed + num(inv.grossValue);
+      push('Agreement','Within total contract value', projected <= ag.value ? 'PASS':'WARNING',`Consumed to date ₹${ag.consumed.toLocaleString('en-IN')} + this invoice would reach ₹${projected.toLocaleString('en-IN')} of a ₹${ag.value.toLocaleString('en-IN')} contract`);
+    }
+  }
+
+  // ---- Matching / classification ----
+  const requires3Way = ['PO Invoice','Service Invoice'].includes(inv.classification) && inv.poAvailable==='Yes';
+  if(requires3Way){
+    const hasGRN = inv.documents.some(d=> d.type==='GRN' || d.type==='Service Entry Sheet');
+    push('Matching','3-way match — GRN/SES present', hasGRN ? 'PASS':'WARNING','Goods Receipt Note / Service Entry Sheet not attached — cannot confirm receipt of goods or services');
+  } else if(inv.poAvailable==='Yes'){
+    push('Matching','2-way match (PO ↔ Invoice)','PASS','No GRN required for this classification');
+  }
+
+  // ---- TDS ----
+  if(inv.tdsApplicable==='Yes'){
+    const expected = num(inv.taxableValue) * (num(inv.tdsRate)/100);
+    push('Compliance','TDS calculation correct', Math.abs(expected - num(inv.tdsAmount)) < 1 ? 'PASS':'WARNING', `Expected TDS ≈ ₹${expected.toFixed(2)} at ${inv.tdsRate||0}% on taxable value vs entered ₹${num(inv.tdsAmount).toFixed(2)}`);
+  }
+
+  return results;
+}
+
+function overallStatusFromResults(results){
+  const fails = results.filter(r=>r.status==='FAIL');
+  const warns = results.filter(r=>r.status==='WARNING');
+  if(fails.length) return 'EXCEPTION';
+  if(warns.length) return 'PASSED_WITH_WARNING';
+  return 'PASSED';
+}
+
+function computeRisk(inv, results){
+  const flags = [];
+  const fail = (label)=> results.find(r=>r.label===label && r.status==='FAIL');
+  if(fail('Duplicate invoice check')) flags.push('Duplicate invoice number/amount detected');
+  if(fail('Bank details match master')) flags.push('Bank account details do not match Vendor Master');
+  if(fail('Sufficient PO balance')) flags.push('Invoice exceeds available PO balance');
+  if(fail('Vendor is active')) flags.push('Vendor is inactive/blocked in master');
+  if(fail('Vendor matches PO')) flags.push('Vendor mismatch against PO');
+  if(fail('Invoice within contract period')) flags.push('Invoice date falls outside contract period');
+  if(inv.manualOverrideOfOcr) flags.push('Manual changes made to AI-extracted invoice fields');
+  if(results.find(r=>r.label==='Duplicate invoice check' && r.status==='WARNING')) flags.push('Possible duplicate — same vendor, date & amount');
+  const critical = ['Duplicate invoice number/amount detected','Bank account details do not match Vendor Master','Invoice exceeds available PO balance'];
+  let level = 'Low';
+  if(flags.some(f=>critical.includes(f))) level = 'Critical';
+  else if(flags.length >= 2) level = 'High';
+  else if(flags.length === 1) level = 'Medium';
+  return { level, flags };
+}
+
+function missingInfoChecklist(inv){
+  const missing = [];
+  if(!inv.vendorName) missing.push('Vendor Name');
+  if(!inv.invoiceNumber) missing.push('Invoice Number');
+  if(!inv.invoiceDate) missing.push('Invoice Date');
+  if(!(num(inv.grossValue)>0)) missing.push('Invoice Value');
+  if(!inv.currency) missing.push('Currency');
+  if(!inv.documents.some(d=>d.type==='Invoice')) missing.push('Invoice Document (PDF/Image)');
+  if(inv.poAvailable==='Yes'){
+    if(!inv.poNumber) missing.push('PO Number (PO marked available)');
+    if(!inv.documents.some(d=>d.type==='PO')) missing.push('PO Document (PO marked available)');
+  }
+  if(inv.agreementAvailable==='Yes'){
+    if(!inv.agreementNumber) missing.push('Agreement Number (Agreement marked available)');
+    if(!inv.documents.some(d=>d.type==='Agreement')) missing.push('Agreement Document (Agreement marked available)');
+  }
+  if(['PO Invoice','Service Invoice'].includes(inv.classification) && inv.poAvailable==='Yes' && !inv.documents.some(d=>d.type==='GRN'||d.type==='Service Entry Sheet')){
+    missing.push('GRN / Service Entry Sheet (required for 3-way match)');
+  }
+  return missing;
+}
+
+/* ------------------------------ permissions ------------------------------*/
+function canEdit(inv){
+  if(!inv) return true;
+  return STATE.currentRole==='AP Maker' && ['Draft','Returned for Correction'].includes(inv.workflow.status);
+}
+function availableActions(inv){
+  const role = STATE.currentRole, st = inv.workflow.status, actions = [];
+  if(role==='AP Maker' && ['Draft'].includes(st)) actions.push('save','submit');
+  if(role==='AP Reviewer' && st==='Submitted') actions.push('moveToReview');
+  if(role==='AP Reviewer' && st==='Under Review') actions.push('evaluate','returnToMaker');
+  if(role==='AP Reviewer' && st==='Exception') actions.push('resendToApproval','returnToMaker');
+  if(role==='Approver' && st==='Pending Approval') actions.push('approve','reject','returnToMaker');
+  if(role==='Finance Admin' && st==='Approved') actions.push('markPosted');
+  if(role==='Finance Admin' && st==='Posted') actions.push('markPaid');
+  if(['Finance Admin','Management'].includes(role)) actions.push('view');
+  return actions;
+}
+const STATUS_ORDER = ['Draft','Submitted','Under Review','Exception','Pending Approval','Approved','Rejected','Posted','Paid','Returned for Correction'];
+
+/* ------------------------------ workflow actions --------------------------*/
+function commitInvoice(inv){
+  if(!inv.id){
+    inv.id = uid('INV');
+    inv.invoiceIdDisplay = 'AP-' + (STATE.invoices.length+1).toString().padStart(5,'0');
+    inv.createdDate = nowISO();
+    STATE.invoices.push(inv);
+  } else {
+    const idx = STATE.invoices.findIndex(x=>x.id===inv.id);
+    if(idx>=0) STATE.invoices[idx] = inv; else STATE.invoices.push(inv);
+  }
+  inv.lastUpdatedDate = nowISO();
+  inv.modifiedBy = STATE.currentUser;
+}
+
+function refreshValidation(inv){
+  const results = validateInvoice(inv, STATE);
+  inv.validations = results;
+  inv.overallStatus = overallStatusFromResults(results);
+  const risk = computeRisk(inv, results);
+  inv.riskLevel = risk.level;
+  inv.riskFlags = risk.flags;
+  return results;
+}
+
+function generateExceptionsFromValidation(inv){
+  const problems = inv.validations.filter(r=> r.status==='FAIL' || r.status==='WARNING');
+  problems.forEach(p=>{
+    const already = inv.exceptions.find(e=> e.linkedCheck === p.label);
+    if(already) return;
+    const severity = p.status==='FAIL' ? (['Bank details match master','Duplicate invoice check','Sufficient PO balance'].includes(p.label) ? 'Critical':'High') : 'Medium';
+    inv.exceptions.push({
+      id: uid('EX'), linkedCheck: p.label, type: p.category+': '+p.label, description: p.message,
+      severity, amountImpact: num(inv.grossValue), responsible: STATE.currentUser, actionRequired:'Review and resolve or request override',
+      reason:'', resolution:'', resolvedBy:'', resolutionDate:'', overrideApproval:'', status:'Open'
+    });
+  });
+}
+
+function handleWorkflowAction(action){
+  const inv = STATE.draft;
+  if(!inv) return;
+  const from = inv.workflow.status;
+
+  if(action==='save'){
+    commitInvoice(inv);
+    addAudit(inv,'Saved draft',{fromStatus:from,toStatus:from});
+    toast('Draft saved.');
+  }
+  else if(action==='submit'){
+    const missing = missingInfoChecklist(inv);
+    if(missing.length){ toast('Cannot submit — missing: '+missing[0]+(missing.length>1?` (+${missing.length-1} more)`:'')); return; }
+    refreshValidation(inv);
+    inv.workflow.status = 'Submitted';
+    inv.workflow.preparedBy = STATE.currentUser;
+    inv.workflow.preparedDate = todayISO();
+    commitInvoice(inv);
+    addAudit(inv,'Submitted for review',{fromStatus:from,toStatus:'Submitted'});
+    toast('Invoice submitted for review.');
+  }
+  else if(action==='moveToReview'){
+    refreshValidation(inv);
+    inv.workflow.status = 'Under Review';
+    inv.workflow.reviewedBy = STATE.currentUser;
+    inv.workflow.reviewedDate = todayISO();
+    addAudit(inv,'Moved to Under Review',{fromStatus:from,toStatus:'Under Review'});
+  }
+  else if(action==='evaluate'){
+    refreshValidation(inv);
+    if(inv.overallStatus==='EXCEPTION'){
+      generateExceptionsFromValidation(inv);
+      inv.workflow.status = 'Exception';
+      addAudit(inv,'Validation failed — routed to Exception queue',{fromStatus:from,toStatus:'Exception'});
+    } else {
+      generateExceptionsFromValidation(inv);
+      inv.workflow.status = 'Pending Approval';
+      addAudit(inv,'Validation cleared — routed to Approval',{fromStatus:from,toStatus:'Pending Approval'});
+    }
+  }
+  else if(action==='resendToApproval'){
+    const unresolvedCritical = inv.exceptions.some(e=> e.severity==='Critical' && e.status!=='Resolved' && !e.overrideApproval);
+    if(unresolvedCritical){ toast('Blocked — unresolved Critical exception requires resolution or an authorized override.'); return; }
+    inv.workflow.status = 'Pending Approval';
+    addAudit(inv,'Exceptions cleared — sent to Approval',{fromStatus:from,toStatus:'Pending Approval'});
+  }
+  else if(action==='returnToMaker'){
+    if(!inv.workflow.comments){ toast('Add a comment explaining why this is being returned.'); return; }
+    inv.workflow.status = 'Returned for Correction';
+    addAudit(inv,'Returned to preparer for correction',{fromStatus:from,toStatus:'Returned for Correction',comments:inv.workflow.comments});
+  }
+  else if(action==='approve'){
+    const unresolvedCritical = inv.exceptions.some(e=> e.severity==='Critical' && e.status!=='Resolved' && !e.overrideApproval);
+    if(unresolvedCritical){ toast('Cannot approve — unresolved Critical exception. Resolve it or record an authorized override first.'); return; }
+    if(inv.workflow.preparedBy && inv.workflow.preparedBy===STATE.currentUser){ toast('Segregation of duties: the Approver cannot be the same person as the Preparer.'); return; }
+    inv.workflow.status = 'Approved';
+    inv.workflow.approvedBy = STATE.currentUser;
+    inv.workflow.approvalDate = todayISO();
+    addAudit(inv,'Approved',{fromStatus:from,toStatus:'Approved'});
+  }
+  else if(action==='reject'){
+    if(!inv.workflow.comments){ toast('Add a comment explaining the rejection.'); return; }
+    inv.workflow.status = 'Rejected';
+    addAudit(inv,'Rejected',{fromStatus:from,toStatus:'Rejected',comments:inv.workflow.comments});
+  }
+  else if(action==='markPosted'){
+    inv.workflow.status = 'Posted';
+    addAudit(inv,'Posted to accounting',{fromStatus:from,toStatus:'Posted'});
+  }
+  else if(action==='markPaid'){
+    inv.workflow.status = 'Paid';
+    addAudit(inv,'Marked paid',{fromStatus:from,toStatus:'Paid'});
+  }
+  commitInvoice(inv);
+  save();
+}
+
+/* ------------------------------ OCR / AI extraction -----------------------*/
+async function fileToBase64(file){
+  return new Promise((resolve,reject)=>{
+    const r = new FileReader();
+    r.onload = ()=> resolve(r.result.split(',')[1]);
+    r.onerror = ()=> reject(new Error('read failed'));
+    r.readAsDataURL(file);
+  });
+}
+
+async function runOcrExtraction(file){
+  const base64 = await fileToBase64(file);
+  const mediaType = file.type || 'application/pdf';
+  const contentBlock = mediaType==='application/pdf'
+    ? { type:'document', source:{ type:'base64', media_type: mediaType, data: base64 } }
+    : { type:'image', source:{ type:'base64', media_type: mediaType, data: base64 } };
+  const prompt = 'Extract invoice fields from this document. Respond ONLY with a single raw JSON object — no markdown fences, no commentary — using exactly these keys: vendorName, invoiceNumber, invoiceDate, currency, taxableValue, cgst, sgst, igst, grossValue, poNumber, paymentTerms, dueDate. Dates must be in YYYY-MM-DD format or null if unknown. Numeric fields must be plain numbers with no currency symbol or thousands separators, or null if unknown.';
+  const body = {
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1000,
+    messages: [{ role:'user', content: [ contentBlock, { type:'text', text: prompt } ] }]
+  };
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  const textBlock = (data.content||[]).find(c=>c.type==='text');
+  if(!textBlock) throw new Error('No text response from extraction model');
+  const cleaned = textBlock.text.replace(/```json|```/g,'').trim();
+  return JSON.parse(cleaned);
+}
+
+/* ------------------------------ Excel export ------------------------------*/
+function buildRegisterRows(){
+  return STATE.invoices.map(inv=>({
+    'Invoice ID': inv.invoiceIdDisplay,
+    'Vendor Name': inv.vendorName,
+    'Vendor Code': inv.vendorCode,
+    'Invoice Number': inv.invoiceNumber,
+    'Invoice Date': inv.invoiceDate,
+    'Currency': inv.currency,
+    'Gross Value': num(inv.grossValue),
+    'Taxable Value': num(inv.taxableValue),
+    'CGST': num(inv.cgst),
+    'SGST': num(inv.sgst),
+    'IGST': num(inv.igst),
+    'Total Tax': num(inv.totalTax),
+    'Net Payable': num(inv.netPayable) || (num(inv.grossValue) - num(inv.tdsAmount)),
+    'Due Date': inv.dueDate,
+    'Payment Terms': inv.paymentTerms,
+    'PO Available': inv.poAvailable,
+    'PO Number': inv.poNumber,
+    'PO Value': num(inv.poValue),
+    'Agreement Available': inv.agreementAvailable,
+    'Agreement Number': inv.agreementNumber,
+    'Entity': inv.entity,
+    'Cost Centre': inv.costCentre,
+    'Department/Project': inv.project,
+    'GL Account': inv.glAccount,
+    'Classification': inv.classification,
+    'Overall Validation': inv.overallStatus==='PASSED'?'PASS':(inv.overallStatus==='EXCEPTION'?'FAIL':'WARNING'),
+    'Risk Level': inv.riskLevel,
+    'Prepared By': inv.workflow.preparedBy,
+    'Reviewed By': inv.workflow.reviewedBy,
+    'Approved By': inv.workflow.approvedBy,
+    'Approval Status': inv.workflow.status,
+    'Exception Count (Open)': inv.exceptions.filter(e=>e.status!=='Resolved').length,
+    'Created Date': inv.createdDate ? inv.createdDate.slice(0,10) : '',
+    'Last Updated': inv.lastUpdatedDate ? inv.lastUpdatedDate.slice(0,10) : ''
+  }));
+}
+function buildValidationRows(){
+  const rows = [];
+  STATE.invoices.forEach(inv=>{
+    (inv.validations||[]).forEach(v=>{
+      rows.push({ 'Invoice ID': inv.invoiceIdDisplay, 'Vendor': inv.vendorName, 'Category': v.category, 'Check': v.label, 'Status': v.status, 'Detail': v.message });
+    });
+  });
+  return rows;
+}
+function buildExceptionRows(){
+  const rows = [];
+  STATE.invoices.forEach(inv=>{
+    (inv.exceptions||[]).forEach(e=>{
+      rows.push({ 'Invoice ID': inv.invoiceIdDisplay, 'Vendor': inv.vendorName, 'Exception Type': e.type, 'Severity': e.severity, 'Description': e.description, 'Amount Impact': e.amountImpact, 'Responsible': e.responsible, 'Status': e.status, 'Resolution': e.resolution, 'Resolved By': e.resolvedBy, 'Resolution Date': e.resolutionDate, 'Override Approval': e.overrideApproval });
+    });
+  });
+  return rows;
+}
+function buildVendorSummaryRows(){
+  const map = {};
+  STATE.invoices.forEach(inv=>{
+    if(!map[inv.vendorName]) map[inv.vendorName] = { 'Vendor Name': inv.vendorName, 'Invoice Count':0, 'Total Value':0, 'Exceptions':0 };
+    map[inv.vendorName]['Invoice Count'] += 1;
+    map[inv.vendorName]['Total Value'] += num(inv.grossValue);
+    map[inv.vendorName]['Exceptions'] += inv.exceptions.filter(e=>e.status!=='Resolved').length;
+  });
+  return Object.values(map).sort((a,b)=> b['Total Value']-a['Total Value']);
+}
+function buildDashboardRows(){
+  const inv = STATE.invoices;
+  const total = inv.length;
+  const totalValue = inv.reduce((s,i)=>s+num(i.grossValue),0);
+  const byStatus = (s)=> inv.filter(i=>i.workflow.status===s);
+  const approvedVal = byStatus('Approved').concat(byStatus('Posted')).concat(byStatus('Paid')).reduce((s,i)=>s+num(i.grossValue),0);
+  const pendingVal = inv.filter(i=>['Draft','Submitted','Under Review','Pending Approval'].includes(i.workflow.status)).reduce((s,i)=>s+num(i.grossValue),0);
+  const exceptionVal = byStatus('Exception').reduce((s,i)=>s+num(i.grossValue),0);
+  const rejectedVal = byStatus('Rejected').reduce((s,i)=>s+num(i.grossValue),0);
+  const poCount = inv.filter(i=>i.poAvailable==='Yes').length;
+  const nonPoCount = total - poCount;
+  const dupCount = inv.filter(i=> (i.validations||[]).some(v=>v.label==='Duplicate invoice check' && v.status==='FAIL')).length;
+  return [
+    { Metric:'Total Invoices', Value: total },
+    { Metric:'Total Invoice Value', Value: totalValue },
+    { Metric:'Approved Value', Value: approvedVal },
+    { Metric:'Pending Value', Value: pendingVal },
+    { Metric:'Exception Value', Value: exceptionVal },
+    { Metric:'Rejected Value', Value: rejectedVal },
+    { Metric:'PO Invoices', Value: poCount },
+    { Metric:'Non-PO Invoices', Value: nonPoCount },
+    { Metric:'Duplicate Invoices Flagged', Value: dupCount }
+  ];
+}
+function autosize(ws, rows){
+  if(!rows.length) return;
+  const keys = Object.keys(rows[0]);
+  ws['!cols'] = keys.map(k=>{
+    const maxLen = Math.max(k.length, ...rows.map(r=> (r[k]===undefined||r[k]===null?'':String(r[k])).length));
+    return { wch: Math.min(Math.max(maxLen+2,10),42) };
+  });
+}
+function exportExcel(){
+  if(typeof XLSX === 'undefined'){ toast('Excel library failed to load — check network access to cdnjs.cloudflare.com.'); return; }
+  const wb = XLSX.utils.book_new();
+
+  const regRows = buildRegisterRows();
+  const wsReg = XLSX.utils.json_to_sheet(regRows);
+  wsReg['!autofilter'] = { ref: wsReg['!ref'] };
+  wsReg['!freeze'] = { xSplit:0, ySplit:1 };
+  autosize(wsReg, regRows);
+  XLSX.utils.book_append_sheet(wb, wsReg, 'Invoice Register');
+
+  const valRows = buildValidationRows();
+  const wsVal = XLSX.utils.json_to_sheet(valRows);
+  if(valRows.length){ wsVal['!autofilter'] = { ref: wsVal['!ref'] }; wsVal['!freeze'] = { xSplit:0, ySplit:1 }; }
+  autosize(wsVal, valRows);
+  XLSX.utils.book_append_sheet(wb, wsVal, 'Validation Details');
+
+  const exRows = buildExceptionRows();
+  const wsEx = XLSX.utils.json_to_sheet(exRows);
+  if(exRows.length){ wsEx['!autofilter'] = { ref: wsEx['!ref'] }; wsEx['!freeze'] = { xSplit:0, ySplit:1 }; }
+  autosize(wsEx, exRows);
+  XLSX.utils.book_append_sheet(wb, wsEx, 'Exceptions');
+
+  const vendRows = buildVendorSummaryRows();
+  const wsVend = XLSX.utils.json_to_sheet(vendRows);
+  if(vendRows.length){ wsVend['!autofilter'] = { ref: wsVend['!ref'] }; wsVend['!freeze'] = { xSplit:0, ySplit:1 }; }
+  autosize(wsVend, vendRows);
+  XLSX.utils.book_append_sheet(wb, wsVend, 'Vendor Summary');
+
+  const dashRows = buildDashboardRows();
+  const wsDash = XLSX.utils.json_to_sheet(dashRows);
+  autosize(wsDash, dashRows);
+  XLSX.utils.book_append_sheet(wb, wsDash, 'Dashboard');
+
+  XLSX.writeFile(wb, 'AP_Invoice_Register_'+todayISO()+'.xlsx');
+  toast('Excel register exported.');
+}
+
+/* ================================ RENDERING =============================== */
+function render(){
+  const root = document.getElementById('root');
+  root.innerHTML = `
+    <div class="shell">
+      ${renderSidebar()}
+      <div class="main">
+        ${renderTopbar()}
+        <div class="content">${renderView()}</div>
+      </div>
+    </div>
+  `;
+  attachHandlers();
+  if(STATE.view==='dashboard') setTimeout(renderCharts, 30);
+}
+
+const NAV = [
+  {id:'dashboard', label:'Dashboard'},
+  {id:'new', label:'New Invoice'},
+  {id:'register', label:'Invoice Register'},
+  {id:'validation', label:'Validation Queue'},
+  {id:'exceptions', label:'Exceptions'},
+  {id:'approvals', label:'Approvals'},
+  {id:'master', label:'Master Data'},
+  {id:'audit', label:'Audit Trail'}
+];
+
+function renderSidebar(){
+  const items = NAV.map(n=>{
+    let count = '';
+    if(n.id==='exceptions') count = STATE.invoices.reduce((s,i)=>s+i.exceptions.filter(e=>e.status!=='Resolved').length,0);
+    if(n.id==='approvals') count = STATE.invoices.filter(i=>i.workflow.status==='Pending Approval').length;
+    if(n.id==='validation') count = STATE.invoices.filter(i=>['Submitted','Under Review'].includes(i.workflow.status)).length;
+    return `<div class="nav-item ${STATE.view===n.id?'active':''}" data-action="nav" data-view="${n.id}">
+      <span class="nav-dot"></span><span>${n.label}</span>
+      ${count ? `<span class="nav-badge">${count}</span>` : ''}
+    </div>`;
+  }).join('');
+  return `<div class="sidebar">
+    <div class="brand"><div class="brand-mark">AP Invoice Control</div><div class="brand-sub">Validation &amp; Excel Register</div></div>
+    <div class="nav">${items}</div>
+    <div class="sidebar-foot">${STATE.settings.entity}<br>Demo build — data stored locally to your account</div>
+  </div>`;
+}
+
+function renderTopbar(){
+  const titles = { dashboard:'Dashboard', new:'Invoice Workspace', register:'Invoice Register', validation:'Validation Queue', exceptions:'Exception Management', approvals:'Approvals', master:'Master Data', audit:'Audit Trail' };
+  const subs = { dashboard:'Portfolio-level view of the invoice book', new:'Create, validate and submit an invoice', register:'Complete invoice-level Excel-ready register', validation:'Invoices awaiting validation review', exceptions:'All open and resolved exceptions across invoices', approvals:'Invoices awaiting approval decision', master:'Vendor, PO, Agreement masters and business rules', audit:'Immutable log of every workflow action' };
+  return `<div class="topbar">
+    <div>
+      <div class="topbar-title">${titles[STATE.view]||''}</div>
+      <div class="topbar-sub">${subs[STATE.view]||''}</div>
+    </div>
+    <div class="topbar-right">
+      <div class="rolebox">
+        <label>Role</label>
+        <select data-action="setRole">
+          ${['AP Maker','AP Reviewer','Approver','Finance Admin','Management'].map(r=>`<option ${STATE.currentRole===r?'selected':''}>${r}</option>`).join('')}
+        </select>
+      </div>
+      <div class="rolebox">
+        <label>User</label>
+        <input type="text" data-action="setUser" value="${esc(STATE.currentUser)}" style="width:110px">
+      </div>
+      <button class="btn btn-primary btn-sm" data-action="nav" data-view="new">+ New Invoice</button>
+    </div>
+  </div>`;
+}
+
+function renderView(){
+  switch(STATE.view){
+    case 'dashboard': return renderDashboard();
+    case 'new': return renderWorkspace();
+    case 'register': return renderRegister();
+    case 'validation': return renderValidationQueue();
+    case 'exceptions': return renderExceptions();
+    case 'approvals': return renderApprovals();
+    case 'master': return renderMaster();
+    case 'audit': return renderAudit();
+    default: return '';
+  }
+}
+
+/* --------------------------------- DASHBOARD ------------------------------*/
+function filteredInvoices(){
+  const f = STATE.dashFilters;
+  return STATE.invoices.filter(i=>{
+    if(f.vendor && i.vendorName!==f.vendor) return false;
+    if(f.poFlag && i.poAvailable!==f.poFlag) return false;
+    if(f.status && i.workflow.status!==f.status) return false;
+    if(f.from && i.invoiceDate && i.invoiceDate<f.from) return false;
+    if(f.to && i.invoiceDate && i.invoiceDate>f.to) return false;
+    return true;
+  });
+}
+function renderDashboard(){
+  const inv = filteredInvoices();
+  const total = inv.length;
+  const totalValue = inv.reduce((s,i)=>s+num(i.grossValue),0);
+  const pendingValidation = inv.filter(i=>['Submitted','Draft'].includes(i.workflow.status)).length;
+  const pendingApproval = inv.filter(i=>i.workflow.status==='Pending Approval').length;
+  const exceptionsOpen = inv.reduce((s,i)=>s+i.exceptions.filter(e=>e.status!=='Resolved').length,0);
+  const approved = inv.filter(i=>i.workflow.status==='Approved').length;
+  const rejected = inv.filter(i=>i.workflow.status==='Rejected').length;
+  const paid = inv.filter(i=>i.workflow.status==='Paid').length;
+  const poCount = inv.filter(i=>i.poAvailable==='Yes').length;
+  const approvedWithDates = inv.filter(i=>i.workflow.approvalDate && i.createdDate);
+  const avgDays = approvedWithDates.length ? Math.round(approvedWithDates.reduce((s,i)=>s+(daysBetween(i.createdDate.slice(0,10), i.workflow.approvalDate)||0),0)/approvedWithDates.length) : 0;
+
+  const vendorOptions = STATE.vendors.map(v=>`<option ${STATE.dashFilters.vendor===v.name?'selected':''}>${esc(v.name)}</option>`).join('');
+  const statusOptions = STATUS_ORDER.map(s=>`<option ${STATE.dashFilters.status===s?'selected':''}>${s}</option>`).join('');
+
+  if(total===0){
+    return `<div class="card empty">
+      <div class="empty-title">No invoices in the register yet</div>
+      <div>Create your first invoice to populate the dashboard, register and Excel export.</div>
+      <div class="btnrow" style="justify-content:center;margin-top:12px;"><button class="btn btn-primary" data-action="nav" data-view="new">+ New Invoice</button></div>
+    </div>`;
+  }
+
+  return `
+  <div class="card">
+    <div class="grid grid-4">
+      <div class="field"><label>Vendor</label><select data-action="filterDash" data-key="vendor"><option value="">All vendors</option>${vendorOptions}</select></div>
+      <div class="field"><label>PO / Non-PO</label><select data-action="filterDash" data-key="poFlag"><option value="">All</option><option ${STATE.dashFilters.poFlag==='Yes'?'selected':''}>Yes</option><option ${STATE.dashFilters.poFlag==='No'?'selected':''}>No</option></select></div>
+      <div class="field"><label>Status</label><select data-action="filterDash" data-key="status"><option value="">All statuses</option>${statusOptions}</select></div>
+      <div class="field"><label>Date from</label><input type="date" data-action="filterDash" data-key="from" value="${STATE.dashFilters.from}"></div>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-label">Total invoices</div><div class="kpi-value">${total}</div></div>
+    <div class="kpi"><div class="kpi-label">Total invoice value</div><div class="kpi-value">${fmtCurrency(totalValue)}</div></div>
+    <div class="kpi"><div class="kpi-label">Pending validation</div><div class="kpi-value">${pendingValidation}</div></div>
+    <div class="kpi"><div class="kpi-label">Pending approval</div><div class="kpi-value">${pendingApproval}</div></div>
+    <div class="kpi"><div class="kpi-label">Open exceptions</div><div class="kpi-value">${exceptionsOpen}</div></div>
+    <div class="kpi"><div class="kpi-label">Approved</div><div class="kpi-value">${approved}</div></div>
+    <div class="kpi"><div class="kpi-label">Rejected</div><div class="kpi-value">${rejected}</div></div>
+    <div class="kpi"><div class="kpi-label">Paid</div><div class="kpi-value">${paid}</div><div class="kpi-sub">Avg. cycle time ${avgDays}d</div></div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-box"><div class="card-title">Monthly invoice volume &amp; value</div><canvas id="chartMonthly"></canvas></div>
+    <div class="chart-box"><div class="card-title">PO vs Non-PO</div><canvas id="chartPoSplit"></canvas></div>
+    <div class="chart-box"><div class="card-title">Vendor-wise invoice value</div><canvas id="chartVendor"></canvas></div>
+    <div class="chart-box"><div class="card-title">Exception categories</div><canvas id="chartExceptions"></canvas></div>
+  </div>
+  `;
+}
+
+function renderCharts(){
+  if(typeof Chart === 'undefined') return;
+  Object.values(chartInstances).forEach(c=>c.destroy());
+  chartInstances = {};
+  const inv = filteredInvoices();
+
+  // Monthly
+  const monthly = {};
+  inv.forEach(i=>{ if(!i.invoiceDate) return; const m = i.invoiceDate.slice(0,7); monthly[m] = monthly[m] || {count:0,value:0}; monthly[m].count++; monthly[m].value += num(i.grossValue); });
+  const months = Object.keys(monthly).sort();
+  const elMonthly = document.getElementById('chartMonthly');
+  if(elMonthly){
+    chartInstances.monthly = new Chart(elMonthly, { type:'bar',
+      data:{ labels: months, datasets:[
+        { type:'bar', label:'Value (₹)', data: months.map(m=>monthly[m].value), backgroundColor:'#2E6094', yAxisID:'y' },
+        { type:'line', label:'Volume', data: months.map(m=>monthly[m].count), borderColor:'#96660A', backgroundColor:'#96660A', yAxisID:'y1', tension:.3 }
+      ]},
+      options:{ responsive:true, scales:{ y:{beginAtZero:true, position:'left'}, y1:{beginAtZero:true, position:'right', grid:{drawOnChartArea:false}} } }
+    });
+  }
+
+  const elPo = document.getElementById('chartPoSplit');
+  if(elPo){
+    const poCount = inv.filter(i=>i.poAvailable==='Yes').length, nonPo = inv.length - poCount;
+    chartInstances.po = new Chart(elPo, { type:'doughnut', data:{ labels:['PO','Non-PO'], datasets:[{ data:[poCount,nonPo], backgroundColor:['#2E6094','#B7C2CE'] }] }, options:{ responsive:true } });
+  }
+
+  const elVendor = document.getElementById('chartVendor');
+  if(elVendor){
+    const vMap = {}; inv.forEach(i=>{ vMap[i.vendorName] = (vMap[i.vendorName]||0) + num(i.grossValue); });
+    const vNames = Object.keys(vMap).sort((a,b)=>vMap[b]-vMap[a]).slice(0,8);
+    chartInstances.vendor = new Chart(elVendor, { type:'bar', data:{ labels: vNames, datasets:[{ label:'Value (₹)', data: vNames.map(n=>vMap[n]), backgroundColor:'#1C7A4C' }] }, options:{ indexAxis:'y', responsive:true } });
+  }
+
+  const elExc = document.getElementById('chartExceptions');
+  if(elExc){
+    const cMap = {};
+    inv.forEach(i=> i.exceptions.forEach(e=>{ const cat = e.type.split(':')[0]; cMap[cat] = (cMap[cat]||0)+1; }));
+    const cats = Object.keys(cMap);
+    chartInstances.exc = new Chart(elExc, { type:'pie', data:{ labels: cats, datasets:[{ data: cats.map(c=>cMap[c]), backgroundColor:['#AE2B24','#96660A','#2E6094','#1C7A4C','#7B5EA7','#C77B33'] }] }, options:{ responsive:true } });
+  }
+}
+
+/* --------------------------------- WORKSPACE ------------------------------*/
+const WSTEPS = [
+  {id:'details', label:'1. Invoice Details'},
+  {id:'poagree', label:'2. PO / Agreement'},
+  {id:'documents', label:'3. Documents'},
+  {id:'validation', label:'4. Validation'},
+  {id:'exceptions', label:'5. Exceptions'},
+  {id:'review', label:'6. Review &amp; Workflow'}
+];
+
+function currentInvoiceForWorkspace(){
+  if(STATE.activeInvoiceId){
+    return STATE.invoices.find(i=>i.id===STATE.activeInvoiceId);
+  }
+  if(!STATE.draft) STATE.draft = newDraftInvoice(STATE);
+  return STATE.draft;
+}
+
+function renderWorkspace(){
+  const inv = currentInvoiceForWorkspace();
+  if(!inv) return `<div class="card">Invoice not found.</div>`;
+  STATE.draft = inv;
+  const editable = canEdit(inv) || !inv.id;
+  const missing = missingInfoChecklist(inv);
+
+  const steps = WSTEPS.map(s=>`<div class="step ${STATE.wizardStep===s.id?'active':''} ${STATE.wizardStep!==s.id?'done':''}" data-action="wstep" data-step="${s.id}"><span class="step-num">${s.id===STATE.wizardStep?'●':'✓'}</span>${s.label}</div>`).join('<div class="step-sep"></div>');
+
+  let body = '';
+  if(STATE.wizardStep==='details') body = renderStepDetails(inv, editable);
+  else if(STATE.wizardStep==='poagree') body = renderStepPoAgreement(inv, editable);
+  else if(STATE.wizardStep==='documents') body = renderStepDocuments(inv, editable);
+  else if(STATE.wizardStep==='validation') body = renderStepValidation(inv);
+  else if(STATE.wizardStep==='exceptions') body = renderStepExceptions(inv);
+  else if(STATE.wizardStep==='review') body = renderStepReview(inv);
+
+  const statusBanner = inv.id ? `<div class="banner banner-neutral"><b>${inv.invoiceIdDisplay}</b> — status: <b>${inv.workflow.status}</b> ${inv.overallStatus!=='Not Run' ? '· validation: '+badge(inv.overallStatus==='PASSED'?'PASS':inv.overallStatus==='EXCEPTION'?'FAIL':'WARNING', inv.overallStatus.replace('_',' ')) : ''} ${inv.riskFlags.length ? '· <span class="risk-pill risk-'+inv.riskLevel+'">Risk: '+inv.riskLevel+'</span>' : ''}</div>` : '';
+
+  return `
+    <div class="stepper">${steps}</div>
+    ${statusBanner}
+    ${missing.length && STATE.wizardStep!=='validation' ? `<div class="banner banner-warn"><div class="banner-title">Invoice cannot be submitted yet — missing information/documents:</div><ul>${missing.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>` : ''}
+    ${body}
+  `;
+}
+
+function fieldHtml(opts){
+  const {label, path, value, type='text', required=false, editable=true, options=null, help=null, diff=false} = opts;
+  const idAttr = `data-field="${path}"`;
+  let input;
+  if(options){
+    input = `<select ${idAttr} data-action="bindChange" ${editable?'':'disabled'}>${options.map(o=>`<option value="${esc(o)}" ${String(value)===String(o)?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
+  } else if(type==='textarea'){
+    input = `<textarea ${idAttr} data-action="bindInput" ${editable?'':'disabled'}>${esc(value)}</textarea>`;
+  } else {
+    input = `<input type="${type}" ${idAttr} data-action="bindInput" value="${esc(value)}" ${editable?'':'disabled'} class="${diff?'field-diff':''}">`;
+  }
+  return `<div class="field"><label>${label}${required?' <span class="req">*</span>':''}</label>${input}${help?`<div class="field-help">${help}</div>`:''}</div>`;
+}
+
+function renderStepDetails(inv, editable){
+  return `
+  <fieldset class="section"><legend>Vendor details</legend>
+    <div class="grid grid-3">
+      ${fieldHtml({label:'Vendor name', path:'vendorName', value:inv.vendorName, required:true, editable, options: STATE.vendors.map(v=>v.name).concat([''])})}
+      ${fieldHtml({label:'Vendor code / ID', path:'vendorCode', value:inv.vendorCode, editable})}
+      ${fieldHtml({label:'GSTIN / Tax ID', path:'vendorGSTIN', value:inv.vendorGSTIN, editable, diff: inv.ocr && inv.ocr.vendorName && inv.ocr.vendorName!==inv.vendorName})}
+      ${fieldHtml({label:'PAN / Registration No.', path:'vendorPAN', value:inv.vendorPAN, editable})}
+      ${fieldHtml({label:'Vendor contact / email', path:'vendorContact', value:inv.vendorContact, type:'email', editable})}
+      ${fieldHtml({label:'Bank account (for match check)', path:'vendorBank', value:inv.vendorBank, editable})}
+    </div>
+    ${fieldHtml({label:'Vendor address', path:'vendorAddress', value:inv.vendorAddress, type:'textarea', editable})}
+  </fieldset>
+
+  <fieldset class="section"><legend>Invoice details</legend>
+    <div class="grid grid-3">
+      ${fieldHtml({label:'Invoice number', path:'invoiceNumber', value:inv.invoiceNumber, required:true, editable})}
+      ${fieldHtml({label:'Invoice date', path:'invoiceDate', value:inv.invoiceDate, type:'date', required:true, editable})}
+      ${fieldHtml({label:'Currency', path:'currency', value:inv.currency, required:true, editable, options:['INR','USD','EUR','GBP']})}
+      ${fieldHtml({label:'Invoice value / gross amount', path:'grossValue', value:inv.grossValue, type:'number', required:true, editable})}
+      ${fieldHtml({label:'Taxable value', path:'taxableValue', value:inv.taxableValue, type:'number', editable})}
+      ${fieldHtml({label:'CGST', path:'cgst', value:inv.cgst, type:'number', editable})}
+      ${fieldHtml({label:'SGST', path:'sgst', value:inv.sgst, type:'number', editable})}
+      ${fieldHtml({label:'IGST', path:'igst', value:inv.igst, type:'number', editable})}
+      ${fieldHtml({label:'Other taxes', path:'otherTax', value:inv.otherTax, type:'number', editable})}
+      ${fieldHtml({label:'Total tax', path:'totalTax', value:inv.totalTax, type:'number', editable, help:'Should equal CGST+SGST+IGST+Other'})}
+      ${fieldHtml({label:'Net payable amount', path:'netPayable', value:inv.netPayable, type:'number', editable})}
+      ${fieldHtml({label:'Payment due date', path:'dueDate', value:inv.dueDate, type:'date', editable})}
+      ${fieldHtml({label:'Payment terms', path:'paymentTerms', value:inv.paymentTerms, editable, options:['','Net 15','Net 30','Net 45','Net 60','Advance']})}
+    </div>
+    ${fieldHtml({label:'Invoice description / nature of expense', path:'description', value:inv.description, type:'textarea', editable})}
+  </fieldset>
+
+  <fieldset class="section"><legend>Tax withholding &amp; classification</legend>
+    <div class="grid grid-4">
+      ${fieldHtml({label:'TDS applicable?', path:'tdsApplicable', value:inv.tdsApplicable, editable, options:['No','Yes']})}
+      ${inv.tdsApplicable==='Yes' ? fieldHtml({label:'TDS section', path:'tdsSection', value:inv.tdsSection, editable, options:['','194C','194J','194I','194Q','195']}) : ''}
+      ${inv.tdsApplicable==='Yes' ? fieldHtml({label:'TDS rate (%)', path:'tdsRate', value:inv.tdsRate, type:'number', editable}) : ''}
+      ${inv.tdsApplicable==='Yes' ? fieldHtml({label:'TDS amount', path:'tdsAmount', value:inv.tdsAmount, type:'number', editable}) : ''}
+      ${fieldHtml({label:'Reverse charge (RCM) applicable?', path:'rcmApplicable', value:inv.rcmApplicable, editable, options:['No','Yes']})}
+      ${fieldHtml({label:'Invoice classification', path:'classification', value:inv.classification, editable, options:['PO Invoice','Non-PO Invoice','Agreement-Based Invoice','Recurring Invoice','Utility Invoice','Service Invoice','Employee Reimbursement','Credit Note','Debit Note','Other']})}
+      ${fieldHtml({label:'Cost centre', path:'costCentre', value:inv.costCentre, editable})}
+      ${fieldHtml({label:'Project / department', path:'project', value:inv.project, editable})}
+      ${fieldHtml({label:'GL account', path:'glAccount', value:inv.glAccount, editable})}
+      ${fieldHtml({label:'Business unit / entity', path:'businessUnit', value:inv.businessUnit, editable})}
+    </div>
+  </fieldset>
+  <div class="btnrow"><button class="btn btn-primary" data-action="wstep" data-step="poagree">Continue: PO / Agreement →</button> ${editable?`<button class="btn" data-action="wf" data-wf="save">Save draft</button>`:''}</div>
+  `;
+}
+
+function renderStepPoAgreement(inv, editable){
+  const poOptions = STATE.pos.map(p=>p.number);
+  const agOptions = STATE.agreements.map(a=>a.number);
+  return `
+  <fieldset class="section"><legend>PO details</legend>
+    <div class="grid grid-3">
+      ${fieldHtml({label:'PO available?', path:'poAvailable', value:inv.poAvailable, required:true, editable, options:['No','Yes']})}
+      ${inv.poAvailable==='Yes' ? fieldHtml({label:'PO number', path:'poNumber', value:inv.poNumber, editable, options:[''].concat(poOptions)}) : ''}
+      ${inv.poAvailable==='Yes' ? fieldHtml({label:'PO date', path:'poDate', value:inv.poDate, type:'date', editable}) : ''}
+      ${inv.poAvailable==='Yes' ? fieldHtml({label:'PO value', path:'poValue', value:inv.poValue, type:'number', editable}) : ''}
+      ${inv.poAvailable==='Yes' ? fieldHtml({label:'PO balance value (reference)', path:'poBalanceValue', value:inv.poBalanceValue, type:'number', editable}) : ''}
+    </div>
+    ${inv.poAvailable==='Yes' && !STATE.pos.find(p=>p.number===inv.poNumber) && inv.poNumber ? `<div class="banner banner-fail" style="margin-top:8px;">PO ${esc(inv.poNumber)} was not found in PO Master.</div>` : ''}
+  </fieldset>
+  <fieldset class="section"><legend>Agreement / contract details</legend>
+    <div class="grid grid-3">
+      ${fieldHtml({label:'Agreement available?', path:'agreementAvailable', value:inv.agreementAvailable, editable, options:['No','Yes']})}
+      ${inv.agreementAvailable==='Yes' ? fieldHtml({label:'Agreement / contract number', path:'agreementNumber', value:inv.agreementNumber, editable, options:[''].concat(agOptions)}) : ''}
+      ${inv.agreementAvailable==='Yes' ? fieldHtml({label:'Agreement start date', path:'agreementStart', value:inv.agreementStart, type:'date', editable}) : ''}
+      ${inv.agreementAvailable==='Yes' ? fieldHtml({label:'Agreement end date', path:'agreementEnd', value:inv.agreementEnd, type:'date', editable}) : ''}
+    </div>
+  </fieldset>
+  <div class="btnrow"><button class="btn" data-action="wstep" data-step="details">← Back</button><button class="btn btn-primary" data-action="wstep" data-step="documents">Continue: Documents →</button></div>
+  `;
+}
+
+const DOC_TYPES = ['Invoice','PO','Agreement','Delivery Challan','GRN','Service Entry Sheet','Work Completion Certificate','Timesheet','Quotation','Purchase Requisition','Approval Email','Debit/Credit Note','Other'];
+
+function renderStepDocuments(inv, editable){
+  const docsList = inv.documents.map(d=>`
+    <div class="doclist-row">
+      <span class="badge badge-neutral">${esc(d.type)}</span>
+      <span style="flex:1">${esc(d.fileName)}</span>
+      <span class="small-muted">${d.uploadDate} · ${esc(d.uploadedBy)}</span>
+      <span class="badge ${d.status==='Verified'?'badge-pass':'badge-neutral'}">${esc(d.status)}</span>
+      ${editable?`<button class="btn btn-sm btn-danger" data-action="removeDoc" data-docid="${d.id}">Remove</button>`:''}
+    </div>`).join('') || `<div class="small-muted">No documents attached yet.</div>`;
+
+  let ocrBlock = '';
+  if(inv.ocr){
+    const fields = [
+      ['Vendor name','vendorName'], ['Invoice number','invoiceNumber'], ['Invoice date','invoiceDate'],
+      ['Currency','currency'], ['Taxable value','taxableValue'], ['CGST','cgst'], ['SGST','sgst'], ['IGST','igst'],
+      ['Gross value','grossValue'], ['PO number','poNumber'], ['Payment terms','paymentTerms'], ['Due date','dueDate']
+    ];
+    const rows = fields.map(([label,key])=>{
+      const extracted = inv.ocr[key];
+      const entered = inv[key];
+      const mismatch = extracted!==null && extracted!==undefined && extracted!=='' && String(extracted)!==String(entered||'');
+      return `<div class="${mismatch?'mismatch':''}">${label}</div><div class="${mismatch?'mismatch':''} num">${extracted===null||extracted===undefined||extracted===''?'—':esc(extracted)}</div><div class="${mismatch?'mismatch':''} num">${entered?esc(entered):'—'}</div><div class="${mismatch?'mismatch':''}">${mismatch?badge('WARNING','Differs'):badge('PASS','Match')}</div>`;
+    }).join('');
+    ocrBlock = `
+    <div class="card" style="margin-top:14px;">
+      <div class="card-title">AI-extracted value vs entered value</div>
+      <div class="card-sub">Extracted using Claude from the uploaded invoice document. Review and correct before finalizing.</div>
+      <div class="diffgrid">
+        <div class="hd">Field</div><div class="hd">AI extracted</div><div class="hd">Entered</div><div class="hd">Match</div>
+        ${rows}
+      </div>
+      ${editable?`<div class="btnrow"><button class="btn btn-primary btn-sm" data-action="applyOcr">Apply AI values to form</button></div>`:''}
+    </div>`;
+  }
+
+  return `
+  <div class="card">
+    <div class="card-title">Mandatory: invoice document</div>
+    <div class="card-sub">Upload the invoice PDF or image. If it's an image or PDF, you can extract fields automatically with AI.</div>
+    <div class="docdrop">
+      <label class="doclabel">Choose file<input type="file" data-action="uploadDoc" data-doctype="Invoice" accept=".pdf,image/*"></label>
+      <div class="small-muted" style="margin-top:8px;">Accepted: PDF, JPG, PNG</div>
+    </div>
+    ${ocrBlock}
+  </div>
+
+  ${inv.poAvailable==='Yes' ? `<div class="card"><div class="card-title">PO document</div><div class="docdrop"><label class="doclabel">Choose file<input type="file" data-action="uploadDoc" data-doctype="PO" accept=".pdf,image/*"></label></div></div>` : ''}
+  ${inv.agreementAvailable==='Yes' ? `<div class="card"><div class="card-title">Agreement / contract document</div><div class="docdrop"><label class="doclabel">Choose file<input type="file" data-action="uploadDoc" data-doctype="Agreement" accept=".pdf,image/*"></label></div></div>` : ''}
+
+  <div class="card">
+    <div class="card-title">Additional supporting documents</div>
+    <div class="grid grid-3">
+      <div class="field"><label>Document type</label><select id="addDocType">${DOC_TYPES.filter(t=>!['Invoice','PO','Agreement'].includes(t)).map(t=>`<option>${t}</option>`).join('')}</select></div>
+      <div class="field"><label>Reference number</label><input type="text" id="addDocRef" placeholder="e.g. GRN-2201"></div>
+      <div class="field"><label>File</label><input type="file" id="addDocFile" accept=".pdf,image/*"></div>
+    </div>
+    <div class="btnrow"><button class="btn" data-action="addOtherDoc">Add document</button></div>
+    <hr class="sep">
+    ${docsList}
+  </div>
+  <div class="btnrow"><button class="btn" data-action="wstep" data-step="poagree">← Back</button><button class="btn btn-primary" data-action="wstep" data-step="validation">Continue: Validation →</button></div>
+  `;
+}
+
+function renderStepValidation(inv){
+  if(!inv.validations.length){
+    return `<div class="card empty">
+      <div class="empty-title">Validation not yet run</div>
+      <div>Run the validation engine to check vendor master, PO, agreement, duplicate, tax and compliance rules.</div>
+      <div class="btnrow" style="justify-content:center;"><button class="btn btn-primary" data-action="runValidation">Run validation</button></div>
+    </div>
+    <div class="btnrow"><button class="btn" data-action="wstep" data-step="documents">← Back</button></div>`;
+  }
+  const byCategory = {};
+  inv.validations.forEach(v=>{ (byCategory[v.category] = byCategory[v.category]||[]).push(v); });
+  const overallBadge = inv.overallStatus==='PASSED' ? badge('PASS','INVOICE VALIDATION — PASSED') : inv.overallStatus==='EXCEPTION' ? badge('FAIL','INVOICE VALIDATION — EXCEPTION') : badge('WARNING','PASSED WITH WARNINGS');
+  const sections = Object.keys(byCategory).map(cat=>`
+    <div class="card">
+      <div class="card-title">${esc(cat)}</div>
+      <div class="table-wrap"><table><thead><tr><th>Check</th><th>Status</th><th>Detail</th></tr></thead><tbody>
+        ${byCategory[cat].map(v=>`<tr><td>${esc(v.label)}</td><td>${badge(v.status)}</td><td class="small-muted">${esc(v.message)}</td></tr>`).join('')}
+      </tbody></table></div>
+    </div>`).join('');
+  return `
+    <div class="banner ${inv.overallStatus==='PASSED'?'banner-pass':inv.overallStatus==='EXCEPTION'?'banner-fail':'banner-warn'}">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <div>${overallBadge}</div>
+        <div><span class="risk-pill risk-${inv.riskLevel}">Fraud/Risk level: ${inv.riskLevel}</span></div>
+      </div>
+      ${inv.riskFlags.length ? `<ul>${inv.riskFlags.map(f=>`<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+    </div>
+    ${sections}
+    <div class="btnrow"><button class="btn" data-action="wstep" data-step="documents">← Back</button><button class="btn" data-action="runValidation">Re-run validation</button><button class="btn btn-primary" data-action="wstep" data-step="exceptions">Continue: Exceptions →</button></div>
+  `;
+}
+
+function renderStepExceptions(inv){
+  const autoBtn = inv.validations.some(v=>v.status!=='PASS') ? `<button class="btn btn-sm" data-action="genExceptions">Generate from validation failures</button>` : '';
+  const rows = inv.exceptions.map(e=>`
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <div><b>${esc(e.type)}</b><div class="small-muted">${esc(e.description)}</div></div>
+        <span class="badge ${e.severity==='Critical'?'badge-fail':e.severity==='High'?'badge-warn':'badge-neutral'}">${e.severity}</span>
+      </div>
+      <div class="grid grid-3" style="margin-top:10px;">
+        <div class="field"><label>Responsible person</label><input type="text" data-action="excField" data-exid="${e.id}" data-key="responsible" value="${esc(e.responsible)}"></div>
+        <div class="field"><label>Amount impact</label><input type="number" data-action="excField" data-exid="${e.id}" data-key="amountImpact" value="${e.amountImpact}"></div>
+        <div class="field"><label>Status</label><select data-action="excField" data-exid="${e.id}" data-key="status"><option ${e.status==='Open'?'selected':''}>Open</option><option ${e.status==='In Progress'?'selected':''}>In Progress</option><option ${e.status==='Resolved'?'selected':''}>Resolved</option></select></div>
+        <div class="field"><label>Exception reason</label><input type="text" data-action="excField" data-exid="${e.id}" data-key="reason" value="${esc(e.reason)}"></div>
+        <div class="field"><label>Resolution</label><input type="text" data-action="excField" data-exid="${e.id}" data-key="resolution" value="${esc(e.resolution)}"></div>
+        <div class="field"><label>Resolved by</label><input type="text" data-action="excField" data-exid="${e.id}" data-key="resolvedBy" value="${esc(e.resolvedBy)}"></div>
+        ${e.severity==='Critical' ? `<div class="field"><label>Override approval (name, if authorized)</label><input type="text" data-action="excField" data-exid="${e.id}" data-key="overrideApproval" value="${esc(e.overrideApproval)}" placeholder="Requires an authorized approver's name"></div>` : ''}
+      </div>
+    </div>
+  `).join('') || `<div class="card empty"><div class="empty-title">No exceptions recorded</div><div>${autoBtn ? 'Validation raised issues — generate exceptions to track and resolve them.' : 'Validation has no open issues.'}</div></div>`;
+
+  return `
+    <div class="btnrow" style="margin-bottom:10px;">${autoBtn}</div>
+    ${rows}
+    <div class="btnrow"><button class="btn" data-action="wstep" data-step="validation">← Back</button><button class="btn btn-primary" data-action="wstep" data-step="review">Continue: Review &amp; Submit →</button></div>
+  `;
+}
+
+function renderStepReview(inv){
+  const actions = inv.id ? availableActions(inv) : ['save','submit'];
+  const openCritical = inv.exceptions.filter(e=>e.severity==='Critical' && e.status!=='Resolved' && !e.overrideApproval);
+  const buttons = [];
+  if(actions.includes('save')) buttons.push(`<button class="btn" data-action="wf" data-wf="save">Save draft</button>`);
+  if(actions.includes('submit')) buttons.push(`<button class="btn btn-primary" data-action="wf" data-wf="submit">Submit for review</button>`);
+  if(actions.includes('moveToReview')) buttons.push(`<button class="btn btn-primary" data-action="wf" data-wf="moveToReview">Move to Under Review</button>`);
+  if(actions.includes('evaluate')) buttons.push(`<button class="btn btn-primary" data-action="wf" data-wf="evaluate">Evaluate &amp; route</button>`);
+  if(actions.includes('resendToApproval')) buttons.push(`<button class="btn btn-primary" data-action="wf" data-wf="resendToApproval">Send to Approval</button>`);
+  if(actions.includes('returnToMaker')) buttons.push(`<button class="btn btn-danger" data-action="wf" data-wf="returnToMaker">Return for correction</button>`);
+  if(actions.includes('approve')) buttons.push(`<button class="btn btn-primary" data-action="wf" data-wf="approve" ${openCritical.length?'disabled':''}>Approve</button>`);
+  if(actions.includes('reject')) buttons.push(`<button class="btn btn-danger" data-action="wf" data-wf="reject">Reject</button>`);
+  if(actions.includes('markPosted')) buttons.push(`<button class="btn btn-primary" data-action="wf" data-wf="markPosted">Mark Posted</button>`);
+  if(actions.includes('markPaid')) buttons.push(`<button class="btn btn-primary" data-action="wf" data-wf="markPaid">Mark Paid</button>`);
+
+  return `
+  <div class="split">
+    <div>
+      <div class="card">
+        <div class="card-title">Final submission summary</div>
+        <table>
+          <tr><td class="small-muted">Vendor</td><td><b>${esc(inv.vendorName)||'—'}</b></td></tr>
+          <tr><td class="small-muted">Invoice</td><td class="num">${esc(inv.invoiceNumber)||'—'}</td></tr>
+          <tr><td class="small-muted">Invoice date</td><td>${fmtDate(inv.invoiceDate)}</td></tr>
+          <tr><td class="small-muted">Invoice value</td><td class="num">${fmtCurrency(inv.grossValue, inv.currency)}</td></tr>
+          <tr><td class="small-muted">PO</td><td>${inv.poAvailable==='Yes' ? esc(inv.poNumber)||'—' : 'Not applicable'}</td></tr>
+          <tr><td class="small-muted">Agreement</td><td>${inv.agreementAvailable==='Yes' ? 'Available — '+esc(inv.agreementNumber) : 'Not applicable'}</td></tr>
+          <tr><td class="small-muted">Duplicate</td><td>${(inv.validations.find(v=>v.label==='Duplicate invoice check')||{}).status==='FAIL' ? 'Yes' : (inv.validations.find(v=>v.label==='Duplicate invoice check')||{}).status==='WARNING' ? 'Possible' : 'No'}</td></tr>
+          <tr><td class="small-muted">Overall validation</td><td>${inv.overallStatus==='Not Run' ? badge('WARNING','Not run yet') : inv.overallStatus==='PASSED' ? badge('PASS','PASSED') : inv.overallStatus==='EXCEPTION' ? badge('FAIL','EXCEPTION') : badge('WARNING','PASSED WITH WARNINGS')}</td></tr>
+          <tr><td class="small-muted">Risk level</td><td><span class="risk-pill risk-${inv.riskLevel}">${inv.riskLevel}</span></td></tr>
+          <tr><td class="small-muted">Open exceptions</td><td>${inv.exceptions.filter(e=>e.status!=='Resolved').length}</td></tr>
+        </table>
+      </div>
+    </div>
+    <div>
+      <fieldset class="section"><legend>Workflow</legend>
+        <div class="grid grid-2">
+          ${fieldHtml({label:'Prepared by', path:'workflow.preparedBy', value:inv.workflow.preparedBy, editable:false})}
+          ${fieldHtml({label:'Prepared date', path:'workflow.preparedDate', value:inv.workflow.preparedDate, type:'date', editable:false})}
+          ${fieldHtml({label:'Reviewed by', path:'workflow.reviewedBy', value:inv.workflow.reviewedBy, editable:false})}
+          ${fieldHtml({label:'Approved by', path:'workflow.approvedBy', value:inv.workflow.approvedBy, editable:false})}
+        </div>
+        <div class="field"><label>Approval status</label><input type="text" value="${esc(inv.workflow.status)}" disabled></div>
+        ${fieldHtml({label:'Comments (required to return or reject)', path:'workflow.comments', value:inv.workflow.comments, type:'textarea', editable:true})}
+        ${openCritical.length ? `<div class="banner banner-fail">Approval is blocked — ${openCritical.length} unresolved Critical exception(s). Resolve them in the Exceptions tab or record an authorized override.</div>` : ''}
+        <div class="btnrow">${buttons.join('')}</div>
+      </fieldset>
+    </div>
+  </div>
+  <div class="btnrow"><button class="btn" data-action="wstep" data-step="exceptions">← Back</button></div>
+  `;
+}
+
+/* --------------------------------- REGISTER --------------------------------*/
+function renderRegister(){
+  const f = STATE.registerFilters;
+  let rows = STATE.invoices.filter(i=>{
+    if(f.q && !( (i.vendorName||'').toLowerCase().includes(f.q.toLowerCase()) || (i.invoiceNumber||'').toLowerCase().includes(f.q.toLowerCase()) || (i.invoiceIdDisplay||'').toLowerCase().includes(f.q.toLowerCase()) )) return false;
+    if(f.status && i.workflow.status!==f.status) return false;
+    if(f.poFlag && i.poAvailable!==f.poFlag) return false;
+    return true;
+  });
+  const body = rows.length ? rows.map(i=>`
+    <tr>
+      <td class="row-link num" data-action="openInvoice" data-id="${i.id}">${i.invoiceIdDisplay}</td>
+      <td>${esc(i.vendorName)}</td>
+      <td class="num">${esc(i.invoiceNumber)}</td>
+      <td>${fmtDate(i.invoiceDate)}</td>
+      <td class="num">${fmtCurrency(i.grossValue, i.currency)}</td>
+      <td>${i.poAvailable}</td>
+      <td>${i.overallStatus==='Not Run' ? badge('WARNING','Not run') : i.overallStatus==='PASSED' ? badge('PASS','PASS') : i.overallStatus==='EXCEPTION' ? badge('FAIL','FAIL') : badge('WARNING','WARN')}</td>
+      <td><span class="risk-pill risk-${i.riskLevel}">${i.riskLevel}</span></td>
+      <td>${badge('NEUTRAL', i.workflow.status)}</td>
+      <td class="row-link" data-action="openInvoice" data-id="${i.id}">Open</td>
+    </tr>`).join('') : `<tr><td colspan="10" class="empty">No invoices match these filters.</td></tr>`;
+
+  return `
+  <div class="card">
+    <div class="grid grid-4">
+      <div class="field"><label>Search vendor / invoice no.</label><input type="text" data-action="filterReg" data-key="q" value="${esc(f.q)}" placeholder="Search..."></div>
+      <div class="field"><label>Status</label><select data-action="filterReg" data-key="status"><option value="">All statuses</option>${STATUS_ORDER.map(s=>`<option ${f.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>PO / Non-PO</label><select data-action="filterReg" data-key="poFlag"><option value="">All</option><option ${f.poFlag==='Yes'?'selected':''}>Yes</option><option ${f.poFlag==='No'?'selected':''}>No</option></select></div>
+      <div class="field" style="display:flex;align-items:flex-end;"><button class="btn btn-primary" data-action="exportExcel" style="width:100%;">Export register to Excel</button></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="table-wrap"><table>
+      <thead><tr><th>Invoice ID</th><th>Vendor</th><th>Invoice No.</th><th>Date</th><th>Gross value</th><th>PO?</th><th>Validation</th><th>Risk</th><th>Status</th><th></th></tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>
+    <div class="inline-note">Export produces a 5-sheet workbook (Invoice Register, Validation Details, Exceptions, Vendor Summary, Dashboard) with frozen header row, autofilter and auto-sized columns. Status cells use ✔/⚠/✘ text markers rather than cell-fill colour, since this browser-side export uses the open-source SheetJS Community Edition, which does not write cell background styling.</div>
+  </div>
+  `;
+}
+
+/* --------------------------------- VALIDATION QUEUE -------------------------*/
+function renderValidationQueue(){
+  const rows = STATE.invoices.filter(i=>['Submitted','Under Review'].includes(i.workflow.status));
+  if(!rows.length) return `<div class="card empty"><div class="empty-title">Queue is empty</div><div>No invoices currently awaiting validation review.</div></div>`;
+  return `<div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Invoice ID</th><th>Vendor</th><th>Value</th><th>Status</th><th>Overall validation</th><th></th></tr></thead>
+    <tbody>${rows.map(i=>`<tr><td class="num">${i.invoiceIdDisplay}</td><td>${esc(i.vendorName)}</td><td class="num">${fmtCurrency(i.grossValue,i.currency)}</td><td>${badge('NEUTRAL',i.workflow.status)}</td><td>${i.overallStatus==='Not Run'?badge('WARNING','Not run'):i.overallStatus==='PASSED'?badge('PASS','PASS'):i.overallStatus==='EXCEPTION'?badge('FAIL','FAIL'):badge('WARNING','WARN')}</td><td><button class="btn btn-sm btn-primary" data-action="openInvoice" data-id="${i.id}">Open</button></td></tr>`).join('')}</tbody>
+  </table></div></div>`;
+}
+
+/* --------------------------------- EXCEPTIONS -------------------------------*/
+function renderExceptions(){
+  const rows = [];
+  STATE.invoices.forEach(inv=> inv.exceptions.forEach(e=> rows.push({inv,e})));
+  if(!rows.length) return `<div class="card empty"><div class="empty-title">No exceptions</div><div>Exceptions raised during validation will appear here.</div></div>`;
+  return `<div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Invoice</th><th>Vendor</th><th>Type</th><th>Severity</th><th>Status</th><th>Amount impact</th><th></th></tr></thead>
+    <tbody>${rows.map(({inv,e})=>`<tr>
+      <td class="num">${inv.invoiceIdDisplay}</td><td>${esc(inv.vendorName)}</td><td>${esc(e.type)}</td>
+      <td><span class="badge ${e.severity==='Critical'?'badge-fail':e.severity==='High'?'badge-warn':'badge-neutral'}">${e.severity}</span></td>
+      <td>${badge(e.status==='Resolved'?'PASS':'NEUTRAL', e.status)}</td>
+      <td class="num">${fmtCurrency(e.amountImpact, inv.currency)}</td>
+      <td><button class="btn btn-sm" data-action="openInvoiceExceptions" data-id="${inv.id}">Open</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div></div>`;
+}
+
+/* --------------------------------- APPROVALS --------------------------------*/
+function renderApprovals(){
+  const rows = STATE.invoices.filter(i=>i.workflow.status==='Pending Approval');
+  if(!rows.length) return `<div class="card empty"><div class="empty-title">Nothing awaiting approval</div><div>Invoices routed for approval after a clean validation, or after exceptions are cleared, will appear here.</div></div>`;
+  return `<div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Invoice ID</th><th>Vendor</th><th>Value</th><th>Risk</th><th>Open exceptions</th><th></th></tr></thead>
+    <tbody>${rows.map(i=>`<tr><td class="num">${i.invoiceIdDisplay}</td><td>${esc(i.vendorName)}</td><td class="num">${fmtCurrency(i.grossValue,i.currency)}</td><td><span class="risk-pill risk-${i.riskLevel}">${i.riskLevel}</span></td><td>${i.exceptions.filter(e=>e.status!=='Resolved').length}</td><td><button class="btn btn-sm btn-primary" data-action="openInvoice" data-id="${i.id}">Review</button></td></tr>`).join('')}</tbody>
+  </table></div></div>`;
+}
+
+/* --------------------------------- MASTER DATA -------------------------------*/
+function renderMaster(){
+  STATE.masterTab = STATE.masterTab || 'vendors';
+  const tabs = ['vendors','pos','agreements','rules'].map(t=>`<div class="tab ${STATE.masterTab===t?'active':''}" data-action="masterTab" data-tab="${t}">${({vendors:'Vendors',pos:'Purchase Orders',agreements:'Agreements',rules:'Business Rules'})[t]}</div>`).join('');
+  let body = '';
+  if(STATE.masterTab==='vendors'){
+    body = `<div class="table-wrap"><table><thead><tr><th>Code</th><th>Name</th><th>GSTIN</th><th>PAN</th><th>Active</th><th>MSME</th><th>Terms</th></tr></thead><tbody>
+      ${STATE.vendors.map((v,idx)=>`<tr>
+        <td><input data-action="masterField" data-list="vendors" data-idx="${idx}" data-key="code" value="${esc(v.code)}" style="width:80px"></td>
+        <td><input data-action="masterField" data-list="vendors" data-idx="${idx}" data-key="name" value="${esc(v.name)}" style="width:220px"></td>
+        <td><input data-action="masterField" data-list="vendors" data-idx="${idx}" data-key="gstin" value="${esc(v.gstin)}" style="width:150px" class="num"></td>
+        <td><input data-action="masterField" data-list="vendors" data-idx="${idx}" data-key="pan" value="${esc(v.pan)}" style="width:100px" class="num"></td>
+        <td><select data-action="masterField" data-list="vendors" data-idx="${idx}" data-key="active"><option value="true" ${v.active?'selected':''}>Yes</option><option value="false" ${!v.active?'selected':''}>No</option></select></td>
+        <td><select data-action="masterField" data-list="vendors" data-idx="${idx}" data-key="msme"><option value="true" ${v.msme?'selected':''}>Yes</option><option value="false" ${!v.msme?'selected':''}>No</option></select></td>
+        <td><input data-action="masterField" data-list="vendors" data-idx="${idx}" data-key="paymentTerms" value="${esc(v.paymentTerms)}" style="width:90px"></td>
+      </tr>`).join('')}
+    </tbody></table></div>
+    <div class="btnrow"><button class="btn" data-action="addVendor">+ Add vendor</button></div>`;
+  } else if(STATE.masterTab==='pos'){
+    body = `<div class="table-wrap"><table><thead><tr><th>PO Number</th><th>Vendor</th><th>Value</th><th>Balance</th><th>Active</th><th>Valid to</th></tr></thead><tbody>
+      ${STATE.pos.map((p,idx)=>`<tr>
+        <td><input data-action="masterField" data-list="pos" data-idx="${idx}" data-key="number" value="${esc(p.number)}" style="width:100px" class="num"></td>
+        <td><select data-action="masterField" data-list="pos" data-idx="${idx}" data-key="vendor" style="width:200px">${STATE.vendors.map(v=>`<option ${v.name===p.vendor?'selected':''}>${esc(v.name)}</option>`).join('')}</select></td>
+        <td><input type="number" data-action="masterField" data-list="pos" data-idx="${idx}" data-key="value" value="${p.value}" style="width:100px" class="num"></td>
+        <td><input type="number" data-action="masterField" data-list="pos" data-idx="${idx}" data-key="balance" value="${p.balance}" style="width:100px" class="num"></td>
+        <td><select data-action="masterField" data-list="pos" data-idx="${idx}" data-key="active"><option value="true" ${p.active?'selected':''}>Yes</option><option value="false" ${!p.active?'selected':''}>No</option></select></td>
+        <td><input type="date" data-action="masterField" data-list="pos" data-idx="${idx}" data-key="validTo" value="${p.validTo}"></td>
+      </tr>`).join('')}
+    </tbody></table></div>
+    <div class="btnrow"><button class="btn" data-action="addPO">+ Add PO</button></div>`;
+  } else if(STATE.masterTab==='agreements'){
+    body = `<div class="table-wrap"><table><thead><tr><th>Number</th><th>Vendor</th><th>Start</th><th>End</th><th>Value</th><th>Consumed</th></tr></thead><tbody>
+      ${STATE.agreements.map((a,idx)=>`<tr>
+        <td><input data-action="masterField" data-list="agreements" data-idx="${idx}" data-key="number" value="${esc(a.number)}" style="width:110px" class="num"></td>
+        <td><select data-action="masterField" data-list="agreements" data-idx="${idx}" data-key="vendor" style="width:200px">${STATE.vendors.map(v=>`<option ${v.name===a.vendor?'selected':''}>${esc(v.name)}</option>`).join('')}</select></td>
+        <td><input type="date" data-action="masterField" data-list="agreements" data-idx="${idx}" data-key="startDate" value="${a.startDate}"></td>
+        <td><input type="date" data-action="masterField" data-list="agreements" data-idx="${idx}" data-key="endDate" value="${a.endDate}"></td>
+        <td><input type="number" data-action="masterField" data-list="agreements" data-idx="${idx}" data-key="value" value="${a.value}" style="width:100px" class="num"></td>
+        <td><input type="number" data-action="masterField" data-list="agreements" data-idx="${idx}" data-key="consumed" value="${a.consumed}" style="width:100px" class="num"></td>
+      </tr>`).join('')}
+    </tbody></table></div>
+    <div class="btnrow"><button class="btn" data-action="addAgreement">+ Add agreement</button></div>`;
+  } else if(STATE.masterTab==='rules'){
+    body = `<div class="grid grid-3">
+      <div class="field"><label>Price variance tolerance (±%)</label><input type="number" data-action="settingField" data-key="priceTolerancePct" value="${STATE.settings.priceTolerancePct}"></div>
+      <div class="field"><label>Quantity variance tolerance (±%)</label><input type="number" data-action="settingField" data-key="qtyTolerancePct" value="${STATE.settings.qtyTolerancePct}"></div>
+      <div class="field"><label>PO mandatory above (₹)</label><input type="number" data-action="settingField" data-key="poMandatoryAbove" value="${STATE.settings.poMandatoryAbove}"></div>
+    </div>
+    <div class="inline-note">These tolerances drive the PO price/quantity variance checks and the PO-mandatory threshold used by the validation engine. Segregation-of-duties (approver ≠ preparer) and the MSME 45-day rule are enforced automatically and are not configurable here.</div>
+    <hr class="sep">
+    <div class="card-title" style="color:var(--fail-fg);">Danger zone</div>
+    <div class="card-sub">Erases every invoice, exception and audit entry created so far, and restores the original demo vendors, POs and agreements. Use this to reset before a demo or after testing.</div>
+    <div class="btnrow"><button class="btn btn-danger" data-action="resetDemo">Reset demo data</button></div>`;
+  }
+  return `<div class="tabs">${tabs}</div><div class="card">${body}</div>`;
+}
+
+/* --------------------------------- AUDIT TRAIL -------------------------------*/
+function renderAudit(){
+  if(!STATE.auditLog.length) return `<div class="card empty"><div class="empty-title">No activity yet</div><div>Every submit, review, approval, rejection and override will be logged here.</div></div>`;
+  return `<div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Timestamp</th><th>Invoice</th><th>User</th><th>Role</th><th>Action</th><th>From → To</th><th>Comments</th></tr></thead>
+    <tbody>${STATE.auditLog.map(a=>`<tr><td class="small-muted num">${new Date(a.timestamp).toLocaleString('en-IN')}</td><td class="num">${esc(a.invoiceNumber)}</td><td>${esc(a.user)}</td><td>${esc(a.role)}</td><td>${esc(a.action)}</td><td>${esc(a.fromStatus||'')} → ${esc(a.toStatus||'')}</td><td class="small-muted">${esc(a.comments||'')}</td></tr>`).join('')}</tbody>
+  </table></div></div>`;
+}
+
+/* ================================ EVENT HANDLING ============================ */
+function attachHandlers(){
+  const root = document.getElementById('root');
+
+  root.querySelectorAll('[data-action="bindInput"]').forEach(el=>{
+    el.addEventListener('input', ()=>{ setPath(STATE.draft, el.dataset.field, el.value); STATE.draft.lastUpdatedDate = nowISO(); });
+  });
+  root.querySelectorAll('[data-action="bindChange"]').forEach(el=>{
+    el.addEventListener('change', ()=>{ setPath(STATE.draft, el.dataset.field, el.value); STATE.draft.lastUpdatedDate = nowISO(); render(); });
+  });
+
+  root.querySelectorAll('[data-action="excField"]').forEach(el=>{
+    el.addEventListener(el.tagName==='SELECT'?'change':'input', ()=>{
+      const ex = STATE.draft.exceptions.find(e=>e.id===el.dataset.exid);
+      if(ex){ ex[el.dataset.key] = el.value; if(el.dataset.key==='status' && el.value==='Resolved'){ ex.resolutionDate = ex.resolutionDate||todayISO(); } }
+      commitInvoice(STATE.draft); save();
+    });
+  });
+
+  root.querySelectorAll('[data-action="masterField"]').forEach(el=>{
+    el.addEventListener(el.tagName==='SELECT'?'change':'input', ()=>{
+      const list = STATE[el.dataset.list]; const item = list[el.dataset.idx]; let v = el.value;
+      if(v==='true') v=true; else if(v==='false') v=false; else if(el.type==='number') v = num(v);
+      item[el.dataset.key] = v; save();
+    });
+  });
+  root.querySelectorAll('[data-action="settingField"]').forEach(el=>{
+    el.addEventListener('input', ()=>{ STATE.settings[el.dataset.key] = num(el.value); save(); });
+  });
+
+  root.querySelectorAll('[data-action="filterDash"]').forEach(el=>{
+    el.addEventListener(el.tagName==='SELECT'?'change':'input', ()=>{ STATE.dashFilters[el.dataset.key] = el.value; save(); });
+  });
+  root.querySelectorAll('[data-action="filterReg"]').forEach(el=>{
+    el.addEventListener(el.tagName==='SELECT'?'change':'input', ()=>{ STATE.registerFilters[el.dataset.key] = el.value; render(); });
+  });
+
+  root.querySelectorAll('[data-action="uploadDoc"]').forEach(el=> el.addEventListener('change', onUploadDoc));
+
+  const roleSel = root.querySelector('[data-action="setRole"]');
+  if(roleSel) roleSel.addEventListener('change', ()=>{ STATE.currentRole = roleSel.value; save(); });
+  const userInp = root.querySelector('[data-action="setUser"]');
+  if(userInp) userInp.addEventListener('focus', ()=>{ userInp.select(); });
+  if(userInp) userInp.addEventListener('input', ()=>{ STATE.currentUser = userInp.value; });
+  if(userInp) userInp.addEventListener('change', ()=>{ persist(); });
+}
+
+function onClick(e){
+  const el = e.target.closest('[data-action]');
+  if(!el) return;
+  const action = el.dataset.action;
+
+  if(action==='nav'){ STATE.view = el.dataset.view; STATE.activeInvoiceId = null; if(el.dataset.view==='new'){ STATE.draft = null; STATE.wizardStep='details'; } save(); }
+  else if(action==='wstep'){ STATE.wizardStep = el.dataset.step; render(); }
+  else if(action==='openInvoice'){ STATE.activeInvoiceId = el.dataset.id; STATE.view='new'; STATE.wizardStep='review'; render(); }
+  else if(action==='openInvoiceExceptions'){ STATE.activeInvoiceId = el.dataset.id; STATE.view='new'; STATE.wizardStep='exceptions'; render(); }
+  else if(action==='runValidation'){ refreshValidation(STATE.draft); commitInvoice(STATE.draft); save(); }
+  else if(action==='genExceptions'){ generateExceptionsFromValidation(STATE.draft); commitInvoice(STATE.draft); save(); }
+  else if(action==='wf'){ handleWorkflowAction(el.dataset.wf); STATE.wizardStep = (el.dataset.wf==='save'||el.dataset.wf==='submit') ? STATE.wizardStep : 'review'; render(); }
+  else if(action==='removeDoc'){ STATE.draft.documents = STATE.draft.documents.filter(d=>d.id!==el.dataset.docid); commitInvoice(STATE.draft); save(); }
+  else if(action==='exportExcel'){ exportExcel(); }
+  else if(action==='applyOcr'){ applyOcrToForm(); }
+  else if(action==='masterTab'){ STATE.masterTab = el.dataset.tab; render(); }
+  else if(action==='addVendor'){ STATE.vendors.push({code:'V-'+Math.floor(1000+Math.random()*9000), name:'New Vendor', gstin:'', pan:'', bank:'', address:'', contact:'', active:true, paymentTerms:'Net 30', currency:'INR', msme:false, tan:''}); render(); }
+  else if(action==='addPO'){ STATE.pos.push({number:'PO-'+Math.floor(60000+Math.random()*9000), vendor: STATE.vendors[0]?STATE.vendors[0].name:'', date: todayISO(), value:0, balance:0, active:true, validTo: addDays(todayISO(),180), currency:'INR', lineItems:[]}); render(); }
+  else if(action==='addAgreement'){ STATE.agreements.push({number:'AG-'+new Date().getFullYear()+'-'+Math.floor(100+Math.random()*900), vendor: STATE.vendors[0]?STATE.vendors[0].name:'', startDate: todayISO(), endDate: addDays(todayISO(),365), value:0, consumed:0, billingFrequency:'Monthly', pricing:''}); render(); }
+  else if(action==='addOtherDoc'){ addOtherDocument(); }
+  else if(action==='resetDemo'){
+    const ok = window.confirm('This will permanently erase all invoices, exceptions, audit history and any master-data edits, and restore the original demo state. Continue?');
+    if(ok){ STATE = seedState(); STATE.masterTab = 'rules'; save(); toast('Demo data reset.'); }
+  }
+}
+
+function onUploadDoc(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const doctype = e.target.dataset.doctype;
+  const doc = { id: uid('DOC'), type: doctype, fileName: file.name, uploadDate: todayISO(), uploadedBy: STATE.currentUser, refNumber:'', status:'Uploaded' };
+  STATE.draft.documents = STATE.draft.documents.filter(d=>d.type!==doctype || doctype==='Other');
+  STATE.draft.documents.push(doc);
+  commitInvoice(STATE.draft);
+
+  if(doctype==='Invoice' && (file.type.startsWith('image/') || file.type==='application/pdf')){
+    toast('Extracting invoice fields with AI…');
+    runOcrExtraction(file).then(extracted=>{
+      STATE.draft.ocr = extracted;
+      commitInvoice(STATE.draft);
+      save();
+      toast('AI extraction complete — review the comparison below.');
+    }).catch(err=>{
+      console.error(err);
+      toast('AI extraction failed — you can still enter the fields manually.');
+      save();
+    });
+  } else {
+    save();
+  }
+}
+
+function addOtherDocument(){
+  const type = document.getElementById('addDocType').value;
+  const ref = document.getElementById('addDocRef').value;
+  const fileEl = document.getElementById('addDocFile');
+  const file = fileEl.files[0];
+  STATE.draft.documents.push({ id: uid('DOC'), type, fileName: file?file.name:'(reference only — no file attached)', uploadDate: todayISO(), uploadedBy: STATE.currentUser, refNumber: ref, status:'Uploaded' });
+  commitInvoice(STATE.draft);
+  save();
+}
+
+function applyOcrToForm(){
+  const inv = STATE.draft;
+  const map = { vendorName:'vendorName', invoiceNumber:'invoiceNumber', invoiceDate:'invoiceDate', currency:'currency', taxableValue:'taxableValue', cgst:'cgst', sgst:'sgst', igst:'igst', grossValue:'grossValue', poNumber:'poNumber', paymentTerms:'paymentTerms', dueDate:'dueDate' };
+  let changed = false;
+  Object.entries(map).forEach(([k,target])=>{
+    const v = inv.ocr[k];
+    if(v!==null && v!==undefined && v!=='' && String(v)!==String(inv[target]||'')){ inv[target] = v; changed = true; }
+  });
+  if(changed) inv.manualOverrideOfOcr = false; // values came from AI, not a manual override
+  commitInvoice(inv);
+  save();
+  toast('AI-extracted values applied to the form.');
+}
+
+/* ================================ INIT ====================================== */
+document.getElementById('root').addEventListener('click', onClick); // bound once — #root itself is never replaced, only its innerHTML
+loadState();
+</script>
+</body>
+</html>
